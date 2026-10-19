@@ -20,7 +20,10 @@ class VerifyCasesSmokeTest(unittest.TestCase):
             root = Path(directory)
             case_dir = root / "cases" / "cpp-peglib-121"
             case_dir.mkdir(parents=True)
-            (case_dir / "case.yaml").write_bytes((source / "case.yaml").read_bytes())
+            case = json.loads((source / "case.yaml").read_text(encoding="utf-8"))
+            case["agent"]["name"] = "MockAgent"
+            case["agent"]["version"] = "2026.10"
+            (case_dir / "case.yaml").write_text(json.dumps(case), encoding="utf-8")
             (case_dir / "agent-fix.patch").write_text("diff --git a/a b/a\n", encoding="utf-8")
             calls: list[tuple[str, ...]] = []
 
@@ -54,6 +57,8 @@ class VerifyCasesSmokeTest(unittest.TestCase):
                 self.assertEqual(verify_cases.main(), 0)
             result = (root / "results" / "cpp-peglib-121.md").read_text(encoding="utf-8")
             self.assertIn("Verdict: **VERIFIED**", result)
+            self.assertRegex(result, r"Verifier: cplus 46cd11f · \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} UTC")
+            self.assertIn("Agent: MockAgent · Version: 2026.10", result)
             self.assertEqual(result.count("| PASS |"), 8)
             self.assertIn("| anti_cheat | PASS |", result)
             for sensitive in ("TOKEN_SENTINEL", "D:\\private\\cplus", "PRIVATE_CPLUS_LOG"):
@@ -80,6 +85,8 @@ class VerifyCasesSmokeTest(unittest.TestCase):
             self.assertIn("no agent fix yet", public_log.getvalue())
             result = (root / "results" / "cpp-peglib-121.md").read_text(encoding="utf-8")
             self.assertIn("Status: no agent fix yet", result)
+            self.assertIn("(configured; not run)", result)
+            self.assertIn("Agent: not run · Version: not recorded", result)
 
 
 def completed(stdout: str):

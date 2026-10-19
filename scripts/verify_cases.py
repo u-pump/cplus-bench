@@ -8,6 +8,7 @@ import re
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -25,6 +26,7 @@ GATES = (
 )
 STATUSES = {"PASS", "FAIL", "ERROR", "REVIEW", "SKIPPED"}
 VERDICTS = {"VERIFIED", "REJECTED", "REVIEW", "NOT_VERIFIABLE", "ERROR"}
+VERIFIER_REVISION = "46cd11f"
 
 
 def quiet(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
@@ -59,11 +61,27 @@ def extract_json(output: str) -> dict[str, object]:
     raise ValueError("No verifier result")
 
 
-def render(case_id: str, verdict: str, gates: dict[str, str], seconds: float | None) -> str:
+def agent_identity(case_id: str) -> tuple[str, str]:
+    case = json.loads((ROOT / "cases" / case_id / "case.yaml").read_text(encoding="utf-8"))
+    agent = case.get("agent") or {}
+    if not isinstance(agent, dict):
+        raise ValueError("Invalid agent metadata")
+    name = str(agent.get("name") or "not run").replace("\n", " ").replace("\r", " ")
+    version = str(agent.get("version") or "not recorded").replace("\n", " ").replace("\r", " ")
+    return name, version
+
+
+def render(case_id: str, verdict: str, gates: dict[str, str], seconds: float | None,
+           agent_name: str, agent_version: str, checked_at_utc: str) -> str:
     duration = "pending" if seconds is None else f"{seconds:.1f} s"
     rows = "\n".join(f"| {gate} | {gates.get(gate, 'SKIPPED')} |" for gate in GATES)
     note = "\n\nStatus: no agent fix yet" if verdict == "PENDING" else ""
+    verifier_note = " (configured; not run)" if verdict == "PENDING" else ""
+    if verdict == "INFRASTRUCTURE_ERROR":
+        verifier_note = " (attempted; no code verdict)"
     return (f"# {case_id}\n\nVerdict: **{verdict}**{note}\n\nElapsed: {duration}\n\n"
+            f"Verifier: cplus {VERIFIER_REVISION} · {checked_at_utc}{verifier_note}\n\n"
+            f"Agent: {agent_name} · Version: {agent_version}\n\n"
             f"| Check | Status |\n| --- | --- |\n{rows}\n")
 
 
@@ -122,15 +140,21 @@ def run_case(case_id: str) -> tuple[str, dict[str, str], float | None]:
 
 def main() -> int:
     failed = False
+    checked_at_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     for case_id in selected_cases():
+        agent_name, agent_version = "not recorded", "not recorded"
         try:
+            agent_name, agent_version = agent_identity(case_id)
             verdict, gates, seconds = run_case(case_id)
         except Exception:
             verdict, gates, seconds = "INFRASTRUCTURE_ERROR", {}, None
             failed = True
         result = ROOT / "results" / f"{case_id}.md"
         result.parent.mkdir(parents=True, exist_ok=True)
-        result.write_text(render(case_id, verdict, gates, seconds), encoding="utf-8")
+        result.write_text(
+            render(case_id, verdict, gates, seconds, agent_name, agent_version, checked_at_utc),
+            encoding="utf-8",
+        )
         label = f"{verdict} - no agent fix yet" if verdict == "PENDING" else verdict
         print(f"{case_id}: {label}")
         for gate in GATES:
