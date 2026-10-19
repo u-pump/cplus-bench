@@ -8,9 +8,8 @@ import re
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parents[1]
 TEMP = Path(os.environ.get("RUNNER_TEMP", str(ROOT / ".tmp")))
@@ -140,7 +139,7 @@ def run_case(case_id: str) -> tuple[str, dict[str, str], float | None]:
 
 def main() -> int:
     failed = False
-    checked_at_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    checked_at_utc = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
     for case_id in selected_cases():
         agent_name, agent_version = "not recorded", "not recorded"
         try:

@@ -1,0 +1,44 @@
+diff --git a/peglib.h b/peglib.h
+index b285339..62993a1 100644
+--- a/peglib.h
++++ b/peglib.h
+@@ -3632,7 +3632,7 @@ std::string
+ ast_to_s(const std::shared_ptr<T> &ptr,
+          std::function<std::string(const T &ast, int level)> fn = nullptr) {
+   std::string s;
+-  ast_to_s_core(ptr, s, 0, fn);
++  if (ptr) { ast_to_s_core(ptr, s, 0, fn); }
+   return s;
+ }
+ 
+@@ -3643,6 +3643,7 @@ struct AstOptimizer {
+   template <typename T>
+   std::shared_ptr<T> optimize(std::shared_ptr<T> original,
+                               std::shared_ptr<T> parent = nullptr) {
++    if (!original) { return original; }
+     auto found =
+         std::find(rules_.begin(), rules_.end(), original->name) != rules_.end();
+     bool opt = mode_ ? !found : found;
+diff --git a/test/test1.cc b/test/test1.cc
+index 4f8f586..ac4373f 100644
+--- a/test/test1.cc
++++ b/test/test1.cc
+@@ -752,6 +752,18 @@ TEST_CASE("Ignore semantic value test", "[general]")
+     REQUIRE(ast->nodes[0]->name == "WORLD");
+ }
+ 
++TEST_CASE("Optimize an ignored root AST", "[general]")
++{
++    parser parser("~START <- 'hello'");
++    parser.enable_ast();
++
++    std::shared_ptr<Ast> ast;
++    REQUIRE(parser.parse("hello", ast));
++    REQUIRE_FALSE(ast);
++    REQUIRE_FALSE(AstOptimizer(true).optimize(ast));
++    REQUIRE(ast_to_s(ast).empty());
++}
++
+ TEST_CASE("Ignore semantic value of 'or' predicate test", "[general]")
+ {
+     parser parser(R"(

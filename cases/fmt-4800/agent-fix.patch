@@ -1,0 +1,27 @@
+diff --git a/include/fmt/base.h b/include/fmt/base.h
+index 20cccc2..a8de877 100644
+--- a/include/fmt/base.h
++++ b/include/fmt/base.h
+@@ -2593,7 +2593,7 @@ template <typename Context> class basic_format_args {
+   FMT_CONSTEXPR auto get(int id) const -> format_arg {
+     auto arg = format_arg();
+     if (!is_packed()) {
+-      if (id < max_size()) arg = args_[id];
++      if (id >= 0 && id < max_size()) arg = args_[id];
+       return arg;
+     }
+     if (unsigned(id) >= detail::max_packed_args) return arg;
+diff --git a/test/printf-test.cc b/test/printf-test.cc
+index f2d2a14..f7b0503 100644
+--- a/test/printf-test.cc
++++ b/test/printf-test.cc
+@@ -305,6 +305,9 @@ TEST(printf_test, positional_width) {
+   EXPECT_EQ("   42", test_sprintf("%2$*1$d", 5, 42));
+   EXPECT_EQ("42   ", test_sprintf("%2$*1$d", -5, 42));
+   EXPECT_EQ("  abc", test_sprintf("%2$*1$s", 5, "abc"));
++  EXPECT_THROW_MSG(test_sprintf("%*0$d", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
++                                11, 12, 13, 14, 15, 16),
++                   format_error, "argument not found");
+   EXPECT_THROW_MSG(test_sprintf("%2$*1$d", 5.0, 42), format_error,
+                    "width is not integer");
+   EXPECT_THROW_MSG(test_sprintf("%2$*1$d"), format_error, "argument not found");
