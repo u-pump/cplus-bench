@@ -14,6 +14,23 @@ import verify_cases
 
 
 class VerifyCasesSmokeTest(unittest.TestCase):
+    def test_rejected_report_has_only_public_one_line_gate_reason(self) -> None:
+        gate = {
+            "name": "anti_cheat",
+            "status": "FAIL",
+            "evidence": {"reason": "protected test edited at test/test1.cc:756; checkout D:\\runner\\private\\case\nPRIVATE_CPLUS_LOG"},
+        }
+        reason = verify_cases.gate_reason(gate)
+        report = verify_cases.render(
+            "cpp-peglib-121", "REJECTED", {"anti_cheat": "FAIL"}, 0.9,
+            "Codex CLI", "0.163.0", "2026-10-19 21:00:00 UTC", reason,
+        )
+        self.assertIn("Reason: protected test edited at test/test1.cc:756", report)
+        self.assertIn("[path]", report)
+        self.assertNotIn("D:\\runner", report)
+        self.assertNotIn("PRIVATE_CPLUS_LOG", report)
+        self.assertEqual(report.count("Reason:"), 1)
+
     def test_one_case_without_private_verifier_or_token(self) -> None:
         source = Path(__file__).resolve().parents[1] / "cases" / "cpp-peglib-121"
         with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[2] / ".tmp") as directory:

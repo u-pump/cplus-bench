@@ -70,28 +70,42 @@ def agent_identity(case_id: str) -> tuple[str, str]:
     return name, version
 
 
+def gate_reason(gate: dict[str, object]) -> str:
+    name = str(gate["name"])
+    evidence = gate.get("evidence")
+    raw = evidence.get("reason") if isinstance(evidence, dict) else None
+    if not isinstance(raw, str) or not raw.strip():
+        return f"{name}: failed"
+    first_line = raw.splitlines()[0].strip()
+    # The gate's reason is public, but checkout locations and raw logs are not.
+    without_paths = re.sub(r"(?<!\w)(?:[A-Za-z]:[\\/]|/(?!/))\S+", "[path]", first_line)
+    return " ".join(without_paths.split())[:240] or f"{name}: failed"
+
+
 def render(case_id: str, verdict: str, gates: dict[str, str], seconds: float | None,
-           agent_name: str, agent_version: str, checked_at_utc: str) -> str:
+           agent_name: str, agent_version: str, checked_at_utc: str,
+           reason: str | None = None) -> str:
     duration = "pending" if seconds is None else f"{seconds:.1f} s"
     rows = "\n".join(f"| {gate} | {gates.get(gate, 'SKIPPED')} |" for gate in GATES)
     note = "\n\nStatus: no agent fix yet" if verdict == "PENDING" else ""
     verifier_note = " (configured; not run)" if verdict == "PENDING" else ""
     if verdict == "INFRASTRUCTURE_ERROR":
         verifier_note = " (attempted; no code verdict)"
-    return (f"# {case_id}\n\nVerdict: **{verdict}**{note}\n\nElapsed: {duration}\n\n"
+    reason_line = f"\n\nReason: {reason}" if reason is not None else ""
+    return (f"# {case_id}\n\nVerdict: **{verdict}**{note}{reason_line}\n\nElapsed: {duration}\n\n"
             f"Verifier: cplus {VERIFIER_REVISION} · {checked_at_utc}{verifier_note}\n\n"
             f"Agent: {agent_name} · Version: {agent_version}\n\n"
             f"| Check | Status |\n| --- | --- |\n{rows}\n")
 
 
-def run_case(case_id: str) -> tuple[str, dict[str, str], float | None]:
+def run_case(case_id: str) -> tuple[str, dict[str, str], float | None, str | None]:
     case_dir = ROOT / "cases" / case_id
     if not case_dir.is_dir():
         raise ValueError("Case missing")
     case = json.loads((case_dir / "case.yaml").read_text(encoding="utf-8"))
     patch = case_dir / "agent-fix.patch"
     if not patch.read_bytes().strip():
-        return "PENDING", {}, None
+        return "PENDING", {}, None, None
     scratch = TEMP / "case-checkouts" / case_id
     scratch.parent.mkdir(parents=True, exist_ok=True)
     clone = quiet("git", "clone", "--quiet", "--no-checkout", case["repo"], str(scratch))
@@ -127,6 +141,7 @@ def run_case(case_id: str) -> tuple[str, dict[str, str], float | None]:
     if not isinstance(raw_gates, list):
         raise RuntimeError("Invalid gate list")
     gates: dict[str, str] = {}
+    reason: str | None = None
     for gate in raw_gates:
         if not isinstance(gate, dict):
             raise RuntimeError("Invalid gate")
@@ -134,7 +149,11 @@ def run_case(case_id: str) -> tuple[str, dict[str, str], float | None]:
         if name not in GATES or status not in STATUSES:
             raise RuntimeError("Unexpected gate")
         gates[str(name)] = str(status)
-    return str(verdict), gates, elapsed
+        if status == "FAIL" and reason is None:
+            reason = gate_reason(gate)
+    if verdict == "REJECTED" and reason is None:
+        reason = "verifier rejected the patch; no failing gate reason provided"
+    return str(verdict), gates, elapsed, reason
 
 
 def main() -> int:
@@ -144,14 +163,15 @@ def main() -> int:
         agent_name, agent_version = "not recorded", "not recorded"
         try:
             agent_name, agent_version = agent_identity(case_id)
-            verdict, gates, seconds = run_case(case_id)
+            verdict, gates, seconds, reason = run_case(case_id)
         except Exception:
-            verdict, gates, seconds = "INFRASTRUCTURE_ERROR", {}, None
+            verdict, gates, seconds, reason = "INFRASTRUCTURE_ERROR", {}, None, None
             failed = True
         result = ROOT / "results" / f"{case_id}.md"
         result.parent.mkdir(parents=True, exist_ok=True)
         result.write_text(
-            render(case_id, verdict, gates, seconds, agent_name, agent_version, checked_at_utc),
+            render(case_id, verdict, gates, seconds, agent_name, agent_version, checked_at_utc,
+                   reason),
             encoding="utf-8",
         )
         label = f"{verdict} - no agent fix yet" if verdict == "PENDING" else verdict
