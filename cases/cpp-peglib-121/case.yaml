@@ -11,5 +11,7 @@
   "build": "cmake -S . -B build -DCMAKE_CXX_FLAGS='-DCATCH_CONFIG_NO_POSIX_SIGNALS' && cmake --build build",
   "test": "ctest --test-dir build --output-on-failure",
   "baseline_reproduction": {"verdict": "REPRODUCED", "runs": "3/3", "elapsed_s": 212.9},
-  "agent": {"name": null, "version": null, "input_sha256": null, "patch_sha256": null}
+  "agent_input_repo": "https://github.com/u-pump/bench-in-cpp-peglib-121",
+  "input_sha256": "55dcae66a8bdd900473375913bf299e37037413bf3213d45c0bd90a5a9262f5b",
+  "agent": null
 }

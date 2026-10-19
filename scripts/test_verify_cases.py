@@ -21,8 +21,7 @@ class VerifyCasesSmokeTest(unittest.TestCase):
             case_dir = root / "cases" / "cpp-peglib-121"
             case_dir.mkdir(parents=True)
             case = json.loads((source / "case.yaml").read_text(encoding="utf-8"))
-            case["agent"]["name"] = "MockAgent"
-            case["agent"]["version"] = "2026.10"
+            case["agent"] = {"name": "MockAgent", "version": "2026.10"}
             (case_dir / "case.yaml").write_text(json.dumps(case), encoding="utf-8")
             (case_dir / "agent-fix.patch").write_text("diff --git a/a b/a\n", encoding="utf-8")
             calls: list[tuple[str, ...]] = []

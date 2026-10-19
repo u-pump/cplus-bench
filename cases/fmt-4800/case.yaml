@@ -11,5 +11,7 @@
   "build": "cmake -S . -B build -DFMT_TEST=ON && cmake --build build --target printf-test",
   "test": "ctest --test-dir build -R printf-test --output-on-failure",
   "baseline_reproduction": {"verdict": "REPRODUCED", "runs": "3/3", "elapsed_s": 217.6},
-  "agent": {"name": null, "version": null, "input_sha256": null, "patch_sha256": null}
+  "agent_input_repo": "https://github.com/u-pump/bench-in-fmt-4800",
+  "input_sha256": "4f5e1dfd69f577dd9c7e6f245eb803026afd6a2ba0fd1ea0d29f590e6713b21e",
+  "agent": null
 }
