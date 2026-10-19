@@ -1,18 +1,16 @@
 # cpp-peglib-121
 
-Verdict: **PENDING**
+Verdict: **REJECTED**
 
-Status: no agent fix yet
+Elapsed: 0.9 s
 
-Elapsed: pending
+Verifier: cplus 46cd11f · 2026-10-19 21:48:32 UTC
 
-Verifier: cplus 46cd11f · 2026-10-19 16:19:39 UTC (configured; not run)
-
-Agent: not run · Version: not recorded
+Agent: Codex CLI · Version: 0.163.0
 
 | Check | Status |
 | --- | --- |
-| anti_cheat | SKIPPED |
+| anti_cheat | FAIL |
 | build:baseline | SKIPPED |
 | repro:baseline | SKIPPED |
 | build:patched | SKIPPED |
