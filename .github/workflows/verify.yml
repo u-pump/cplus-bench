@@ -1,0 +1,76 @@
+name: Verify submitted patches
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'cases/**'
+  workflow_dispatch:
+    inputs:
+      case_id:
+        description: 'Case ID (blank means all cases)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.actor == 'u-pump'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      BEFORE_SHA: ${{ github.event.before }}
+      HEAD_SHA: ${{ github.sha }}
+      SELECT_CASE: ${{ inputs.case_id }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - name: Detect submitted patches
+        id: patches
+        run: echo "has_patch=$(python scripts/verify_cases.py --has-patches)" >> "$GITHUB_OUTPUT"
+      - name: Install private verifier
+        if: steps.patches.outputs.has_patch == 'true'
+        env:
+          CPLUS_READ_TOKEN: ${{ secrets.CPLUS_READ_TOKEN }}
+        run: bash scripts/install_private.sh
+      - name: Verify cases
+        env:
+          CPLUS_DATA_DIR: ${{ runner.temp }}/cplus-data
+        run: python scripts/verify_cases.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: public-results
+          path: results/*.md
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    if: github.actor == 'u-pump'
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: public-results
+          path: results
+      - name: Commit generated summaries
+        env:
+          RESULTS_TOKEN: ${{ github.token }}
+        run: bash scripts/commit_results.sh

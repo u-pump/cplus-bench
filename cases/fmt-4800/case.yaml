@@ -1,0 +1,15 @@
+{
+  "id": "fmt-4800",
+  "repo": "https://github.com/fmtlib/fmt.git",
+  "base": "e60274b29c0a748df2c6280d0a374e6eef3b6c73",
+  "upstream_fix": "128ba144ab85ddd0ad9ea39f2febdfb51802cb1b",
+  "bug_test": "printf_test.zero_positional_width_precision",
+  "issue_url": "https://github.com/fmtlib/fmt/pull/4800",
+  "fix_url": "https://github.com/fmtlib/fmt/commit/128ba144ab85ddd0ad9ea39f2febdfb51802cb1b",
+  "license": "MIT",
+  "category": "out-of-bounds read / memory",
+  "build": "cmake -S . -B build -DFMT_TEST=ON && cmake --build build --target printf-test",
+  "test": "ctest --test-dir build -R printf-test --output-on-failure",
+  "baseline_reproduction": {"verdict": "REPRODUCED", "runs": "3/3", "elapsed_s": 217.6},
+  "agent": {"name": null, "version": null, "input_sha256": null, "patch_sha256": null}
+}
