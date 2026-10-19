@@ -1,0 +1,15 @@
+{
+  "id": "cpp-peglib-121",
+  "repo": "https://github.com/yhirose/cpp-peglib.git",
+  "base": "14305f9f53cde207568f21675a1b9294a3ab28b4",
+  "upstream_fix": "0061f393de54cf0326621c079dc2988336d1ebb3",
+  "bug_test": "Start rule with ignore operator test",
+  "issue_url": "https://github.com/yhirose/cpp-peglib/issues/121",
+  "fix_url": "https://github.com/yhirose/cpp-peglib/commit/0061f393de54cf0326621c079dc2988336d1ebb3",
+  "license": "MIT",
+  "category": "parser logic / boundary",
+  "build": "cmake -S . -B build -DCMAKE_CXX_FLAGS='-DCATCH_CONFIG_NO_POSIX_SIGNALS' && cmake --build build",
+  "test": "ctest --test-dir build --output-on-failure",
+  "baseline_reproduction": {"verdict": "REPRODUCED", "runs": "3/3", "elapsed_s": 212.9},
+  "agent": {"name": null, "version": null, "input_sha256": null, "patch_sha256": null}
+}
