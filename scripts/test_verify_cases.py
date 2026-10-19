@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import json
 import contextlib
 import io
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -72,7 +72,9 @@ class VerifyCasesSmokeTest(unittest.TestCase):
             root = Path(directory)
             case_dir = root / "cases" / "cpp-peglib-121"
             case_dir.mkdir(parents=True)
-            (case_dir / "case.yaml").write_bytes((source / "case.yaml").read_bytes())
+            case = json.loads((source / "case.yaml").read_text(encoding="utf-8"))
+            case["agent"] = None
+            (case_dir / "case.yaml").write_text(json.dumps(case), encoding="utf-8")
             (case_dir / "agent-fix.patch").write_bytes(b"")
             public_log = io.StringIO()
             with (patch.object(verify_cases, "ROOT", root),

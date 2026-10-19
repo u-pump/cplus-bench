@@ -13,5 +13,16 @@
   "baseline_reproduction": {"verdict": "REPRODUCED", "runs": "3/3", "elapsed_s": 217.6},
   "agent_input_repo": "https://github.com/u-pump/bench-in-fmt-4800",
   "input_sha256": "4f5e1dfd69f577dd9c7e6f245eb803026afd6a2ba0fd1ea0d29f590e6713b21e",
-  "agent": null
+  "agent": {
+    "name": "Codex CLI",
+    "version": "0.163.0",
+    "model": "gpt-6-sol",
+    "reasoning": "medium",
+    "date_utc": "2026-10-19",
+    "environment": "local Windows, MSVC 2019 Build Tools",
+    "invocation": "codex exec",
+    "sandbox": "workspace-write",
+    "patch_sha256": "0fa4bd65d2fcf96f9ecfee2e555cd0e5846a27f9870fdd6947646e56b198b9b3",
+    "excluded": "build-ninja/ (build output)"
+  }
 }
