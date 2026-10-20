@@ -25,7 +25,7 @@ GATES = (
 )
 STATUSES = {"PASS", "FAIL", "ERROR", "REVIEW", "SKIPPED"}
 VERDICTS = {"VERIFIED", "REJECTED", "REVIEW", "NOT_VERIFIABLE", "ERROR"}
-VERIFIER_REVISION = "46cd11f"
+VERIFIER_REVISION = "976a93b361f41e0d06f43a76709258db34148669"
 
 
 def quiet(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:

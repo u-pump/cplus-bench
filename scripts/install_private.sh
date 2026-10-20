@@ -14,6 +14,6 @@ chmod 700 "$RUNNER_TEMP/askpass"
 trap 'rm -f "$RUNNER_TEMP/askpass"; rm -rf -- "$source_dir"' EXIT
 GIT_ASKPASS="$RUNNER_TEMP/askpass" GIT_TERMINAL_PROMPT=0 git clone -q https://github.com/u-pump/c-plus.git "$source_dir" >/dev/null 2>&1 || { echo 'Verifier install failed'; exit 1; }
 rm -f "$RUNNER_TEMP/askpass"
-git -C "$source_dir" checkout -q --detach 46cd11f >/dev/null 2>&1 || { echo 'Verifier revision unavailable'; exit 1; }
+git -C "$source_dir" checkout -q --detach 976a93b361f41e0d06f43a76709258db34148669 >/dev/null 2>&1 || { echo 'Verifier revision unavailable'; exit 1; }
 python -m pip install -q "$source_dir" >/dev/null 2>&1 || { echo 'Verifier install failed'; exit 1; }
 rm -rf -- "$source_dir"

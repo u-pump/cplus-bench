@@ -73,7 +73,7 @@ class VerifyCasesSmokeTest(unittest.TestCase):
                 self.assertEqual(verify_cases.main(), 0)
             result = (root / "results" / "cpp-peglib-121.md").read_text(encoding="utf-8")
             self.assertIn("Verdict: **VERIFIED**", result)
-            self.assertRegex(result, r"Verifier: cplus 46cd11f · \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} UTC")
+            self.assertRegex(result, rf"Verifier: cplus {verify_cases.VERIFIER_REVISION} · \d{{4}}-\d{{2}}-\d{{2}} \d{{2}}:\d{{2}}:\d{{2}} UTC")
             self.assertIn("Agent: MockAgent · Version: 2026.10", result)
             self.assertEqual(result.count("| PASS |"), 8)
             self.assertIn("| anti_cheat | PASS |", result)
