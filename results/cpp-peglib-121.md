@@ -1,20 +1,22 @@
 # cpp-peglib-121
 
-Verdict: **NOT_VERIFIABLE**
+Verdict: **REJECTED**
 
-Elapsed: 0.7 s
+Reason: judged by upstream reference test 'Start rule with ignore operator test'; the patch did not eliminate the expected reproducer failure
 
-Verifier: cplus 976a93b361f41e0d06f43a76709258db34148669 · 2026-10-20 15:59:47 UTC
+Elapsed: 50.7 s
+
+Verifier: cplus e9c5ad9c3c63ac1b5a0a1366a122d17f0f226ab6 · 2026-10-20 17:12:25 UTC
 
 Agent: Codex CLI · Version: 0.163.0
 
 | Check | Status |
 | --- | --- |
-| anti_cheat | SKIPPED |
-| build:baseline | SKIPPED |
-| repro:baseline | SKIPPED |
-| build:patched | SKIPPED |
-| repro:patched | SKIPPED |
+| anti_cheat | PASS |
+| build:baseline | PASS |
+| repro:baseline | PASS |
+| build:patched | PASS |
+| repro:patched | FAIL |
 | repeat | SKIPPED |
 | revert | SKIPPED |
 | regression | SKIPPED |
