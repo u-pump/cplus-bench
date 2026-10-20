@@ -82,6 +82,20 @@ def gate_reason(gate: dict[str, object]) -> str:
     return " ".join(without_paths.split())[:240] or f"{name}: failed"
 
 
+def summary_reason(raw: object, fallback: str) -> str:
+    """Publish a short verifier summary, never a path or raw diagnostic log."""
+    if not isinstance(raw, str) or not raw.strip():
+        return fallback
+    first_line = " ".join(raw.splitlines()[0].split())
+    if (
+        not first_line
+        or len(first_line) > 240
+        or re.search(r"[\\/]|\b(?:traceback|stdout|stderr|log)\b", first_line, re.I)
+    ):
+        return fallback
+    return first_line
+
+
 def render(case_id: str, verdict: str, gates: dict[str, str], seconds: float | None,
            agent_name: str, agent_version: str, checked_at_utc: str,
            reason: str | None = None) -> str:
@@ -153,6 +167,8 @@ def run_case(case_id: str) -> tuple[str, dict[str, str], float | None, str | Non
             reason = gate_reason(gate)
     if verdict == "REJECTED" and reason is None:
         reason = "verifier rejected the patch; no failing gate reason provided"
+    if verdict in {"NOT_VERIFIABLE", "ERROR"} and reason is None:
+        reason = summary_reason(report.get("summary"), f"verifier returned {str(verdict).lower()}")
     return str(verdict), gates, elapsed, reason
 
 
@@ -165,7 +181,9 @@ def main() -> int:
             agent_name, agent_version = agent_identity(case_id)
             verdict, gates, seconds, reason = run_case(case_id)
         except Exception:
-            verdict, gates, seconds, reason = "INFRASTRUCTURE_ERROR", {}, None, None
+            verdict, gates, seconds, reason = (
+                "INFRASTRUCTURE_ERROR", {}, None, "case execution failed before a valid verifier result"
+            )
             failed = True
         result = ROOT / "results" / f"{case_id}.md"
         result.parent.mkdir(parents=True, exist_ok=True)

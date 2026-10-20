@@ -14,6 +14,71 @@ import verify_cases
 
 
 class VerifyCasesSmokeTest(unittest.TestCase):
+    def test_run_case_uses_public_verifier_summary(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[2] / ".tmp") as directory:
+            temp = Path(directory)
+
+            def fake_quiet(*args: str, cwd: Path | None = None):
+                if args[:2] == ("git", "clone"):
+                    Path(args[-1]).mkdir(parents=True, exist_ok=True)
+                if args[:2] == ("git", "diff"):
+                    return completed("diff --git a/test.cc b/test.cc\n")
+                if args[:2] == ("cplus", "bug"):
+                    Path(args[args.index("--export") + 1]).write_text("{}", encoding="utf-8")
+                    return completed("REPRODUCED")
+                if args[:2] == ("cplus", "verify"):
+                    return completed(json.dumps({
+                        "schema_version": 1, "verdict": current_verdict,
+                        "summary": "the fix patch differs from the one whose test reproduced this bug",
+                        "infrastructure_error": None, "gates": [],
+                    }))
+                return completed("")
+
+            for current_verdict in ("NOT_VERIFIABLE", "ERROR"):
+                with (self.subTest(verdict=current_verdict),
+                      patch.object(verify_cases, "TEMP", temp),
+                      patch.object(verify_cases, "quiet", side_effect=fake_quiet)):
+                    verdict, gates, _elapsed, reason = verify_cases.run_case("cpp-peglib-121")
+                self.assertEqual(verdict, current_verdict)
+                self.assertEqual(gates, {})
+                self.assertEqual(
+                    reason, "the fix patch differs from the one whose test reproduced this bug"
+                )
+
+    def test_nonverifiable_and_error_reasons_are_short_and_public(self) -> None:
+        summary = "the fix patch differs from the one whose test reproduced this bug\nPRIVATE_CPLUS_LOG"
+        self.assertEqual(
+            verify_cases.summary_reason(summary, "fallback"),
+            "the fix patch differs from the one whose test reproduced this bug",
+        )
+        self.assertEqual(
+            verify_cases.summary_reason("build failed at D:\\runner\\private\\log", "verifier returned error"),
+            "verifier returned error",
+        )
+        for verdict in ("NOT_VERIFIABLE", "ERROR", "INFRASTRUCTURE_ERROR"):
+            report = verify_cases.render(
+                "fmt-4800", verdict, {}, 0.7, "Codex CLI", "0.163.0",
+                "2026-10-20 18:00:00 UTC", verify_cases.summary_reason(summary, "fallback"),
+            )
+            self.assertEqual(report.count("Reason:"), 1)
+            self.assertNotIn("PRIVATE_CPLUS_LOG", report)
+            self.assertNotIn("D:\\runner", report)
+
+    def test_infrastructure_error_reports_generic_reason_without_exception_details(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[2] / ".tmp") as directory:
+            root = Path(directory)
+            with (patch.object(verify_cases, "ROOT", root),
+                  patch.object(verify_cases, "selected_cases", return_value=["fmt-4800"]),
+                  patch.object(verify_cases, "agent_identity", return_value=("Codex CLI", "0.163.0")),
+                  patch.object(verify_cases, "run_case", side_effect=RuntimeError("D:\\runner\\private\\log PRIVATE_CPLUS_LOG")),
+                  contextlib.redirect_stdout(io.StringIO())):
+                self.assertEqual(verify_cases.main(), 1)
+            result = (root / "results" / "fmt-4800.md").read_text(encoding="utf-8")
+            self.assertIn("Verdict: **INFRASTRUCTURE_ERROR**", result)
+            self.assertIn("Reason: case execution failed before a valid verifier result", result)
+            self.assertNotIn("D:\\runner", result)
+            self.assertNotIn("PRIVATE_CPLUS_LOG", result)
+
     def test_rejected_report_has_only_public_one_line_gate_reason(self) -> None:
         gate = {
             "name": "anti_cheat",
