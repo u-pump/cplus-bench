@@ -2,6 +2,8 @@
 
 Verdict: **REJECTED**
 
+Reason: the patch changes protected tests or check configuration; test/test1.cc, line 752
+
 Elapsed: 0.9 s
 
 Verifier: cplus 46cd11f · 2026-10-19 21:48:32 UTC
