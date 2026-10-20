@@ -25,7 +25,7 @@ GATES = (
 )
 STATUSES = {"PASS", "FAIL", "ERROR", "REVIEW", "SKIPPED"}
 VERDICTS = {"VERIFIED", "REJECTED", "REVIEW", "NOT_VERIFIABLE", "ERROR"}
-VERIFIER_REVISION = "976a93b361f41e0d06f43a76709258db34148669"
+VERIFIER_REVISION = "e9c5ad9c3c63ac1b5a0a1366a122d17f0f226ab6"
 
 
 def quiet(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
@@ -145,7 +145,8 @@ def run_case(case_id: str) -> tuple[str, dict[str, str], float | None, str | Non
         raise RuntimeError("Baseline not reproduced")
     started = time.monotonic()
     verify = quiet("cplus", "verify", "--project", str(scratch), "--patch",
-                   str(patch), "--bug-spec", str(spec), "--json")
+                   str(patch), "--bug-spec", str(spec),
+                   "--reference-test-from-fix", str(upstream_patch), "--json")
     elapsed = time.monotonic() - started
     report = extract_json(verify.stdout)
     verdict = report.get("verdict")
@@ -169,6 +170,9 @@ def run_case(case_id: str) -> tuple[str, dict[str, str], float | None, str | Non
         reason = "verifier rejected the patch; no failing gate reason provided"
     if verdict in {"NOT_VERIFIABLE", "ERROR"} and reason is None:
         reason = summary_reason(report.get("summary"), f"verifier returned {str(verdict).lower()}")
+    reference_reason = summary_reason(report.get("summary"), "")
+    if reference_reason.startswith("judged by upstream reference test '"):
+        reason = reference_reason
     return str(verdict), gates, elapsed, reason
 
 

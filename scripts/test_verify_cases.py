@@ -147,6 +147,52 @@ class VerifyCasesSmokeTest(unittest.TestCase):
                 self.assertNotIn(sensitive, public_log.getvalue())
             self.assertTrue(any(call[:2] == ("cplus", "bug") for call in calls))
             self.assertTrue(any(call[:2] == ("cplus", "verify") for call in calls))
+            verify_call = next(call for call in calls if call[:2] == ("cplus", "verify"))
+            self.assertEqual(
+                Path(verify_call[verify_call.index("--reference-test-from-fix") + 1]).name,
+                "cpp-peglib-121-upstream.patch",
+            )
+
+    def test_reference_test_reason_is_public_for_verified_and_rejected(self) -> None:
+        summary = (
+            "judged by upstream reference test 'printf_test.zero_positional_width_precision'; "
+            "fix proven"
+        )
+        self.assertEqual(verify_cases.summary_reason(summary, "fallback"), summary)
+        report = verify_cases.render(
+            "fmt-4800", "VERIFIED", {}, 1.0, "Codex CLI", "0.163.0",
+            "2026-10-20 18:00:00 UTC", summary,
+        )
+        self.assertIn(f"Reason: {summary}", report)
+
+    def test_reference_reason_is_used_even_when_a_gate_fails(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[2] / ".tmp") as directory:
+            temp = Path(directory)
+
+            def fake_quiet(*args: str, cwd: Path | None = None):
+                if args[:2] == ("git", "clone"):
+                    Path(args[-1]).mkdir(parents=True, exist_ok=True)
+                if args[:2] == ("git", "diff"):
+                    return completed("diff --git a/test.cc b/test.cc\n")
+                if args[:2] == ("cplus", "bug"):
+                    Path(args[args.index("--export") + 1]).write_text("{}", encoding="utf-8")
+                    return completed("REPRODUCED")
+                if args[:2] == ("cplus", "verify"):
+                    return completed(json.dumps({
+                        "schema_version": 1, "verdict": "REJECTED",
+                        "summary": "judged by upstream reference test 'Regression'; still fails",
+                        "infrastructure_error": None,
+                        "gates": [{"name": "repro:patched", "status": "FAIL",
+                                   "evidence": {"reason": "the reproducer still fails"}}],
+                    }))
+                return completed("")
+
+            with (patch.object(verify_cases, "TEMP", temp),
+                  patch.object(verify_cases, "quiet", side_effect=fake_quiet)):
+                verdict, gates, _elapsed, reason = verify_cases.run_case("cpp-peglib-121")
+            self.assertEqual(verdict, "REJECTED")
+            self.assertEqual(gates["repro:patched"], "FAIL")
+            self.assertEqual(reason, "judged by upstream reference test 'Regression'; still fails")
 
     def test_empty_patch_skips_verifier_and_says_no_agent_fix_yet(self) -> None:
         source = Path(__file__).resolve().parents[1] / "cases" / "cpp-peglib-121"
