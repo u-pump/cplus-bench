@@ -1,18 +1,16 @@
 # cpp-peglib-121
 
-Verdict: **REJECTED**
+Verdict: **NOT_VERIFIABLE**
 
-Reason: the patch changes protected tests or check configuration; test/test1.cc, line 752
+Elapsed: 0.7 s
 
-Elapsed: 0.9 s
-
-Verifier: cplus 46cd11f · 2026-10-19 21:48:32 UTC
+Verifier: cplus 976a93b361f41e0d06f43a76709258db34148669 · 2026-10-20 15:59:47 UTC
 
 Agent: Codex CLI · Version: 0.163.0
 
 | Check | Status |
 | --- | --- |
-| anti_cheat | FAIL |
+| anti_cheat | SKIPPED |
 | build:baseline | SKIPPED |
 | repro:baseline | SKIPPED |
 | build:patched | SKIPPED |
