@@ -212,8 +212,11 @@ def run_case(case_id: str) -> tuple[str, dict[str, str], float | None, str | Non
             raise CaseExecutionError("parse", "invalid verifier result")
         if name not in GATES:
             # The verifier may include a diagnostic gate on an inconclusive result.
-            # Keep its name and evidence out of the public summary.
-            continue
+            # Keep its name and evidence out of the public summary, but never
+            # publish a positive code verdict if an unknown check appeared.
+            if verdict in {"NOT_VERIFIABLE", "ERROR"}:
+                continue
+            raise CaseExecutionError("parse", "unexpected verifier check")
         gates[str(name)] = str(status)
         if status == "FAIL" and reason is None:
             reason = gate_reason(gate)

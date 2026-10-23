@@ -126,6 +126,7 @@ class VerifyCasesSmokeTest(unittest.TestCase):
     def test_inconclusive_verifier_diagnostic_stays_out_of_public_report(self) -> None:
         with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[2] / ".tmp") as directory:
             temp = Path(directory)
+            current_verdict = "NOT_VERIFIABLE"
 
             def fake_quiet(*args: str, cwd: Path | None = None):
                 if args[:2] == ("git", "clone"):
@@ -137,7 +138,7 @@ class VerifyCasesSmokeTest(unittest.TestCase):
                     return completed("REPRODUCED")
                 if args[:2] == ("cplus", "verify"):
                     return completed(json.dumps({
-                        "schema_version": 1, "verdict": "NOT_VERIFIABLE",
+                        "schema_version": 1, "verdict": current_verdict,
                         "summary": "reference test conflicts with agent test edits",
                         "infrastructure_error": None,
                         "gates": [{"name": "apply:reference", "status": "ERROR",
@@ -152,6 +153,12 @@ class VerifyCasesSmokeTest(unittest.TestCase):
             self.assertEqual(gates, {})
             self.assertEqual(reason, "reference test conflicts with agent test edits")
             self.assertNotIn("PRIVATE_CPLUS_LOG", reason)
+            current_verdict = "VERIFIED"
+            with (patch.object(verify_cases, "TEMP", temp),
+                  patch.object(verify_cases, "quiet", side_effect=fake_quiet)):
+                with self.assertRaises(verify_cases.CaseExecutionError) as caught:
+                    verify_cases.run_case("cpp-peglib-121")
+            self.assertEqual(caught.exception.public_reason, "parse: unexpected verifier check")
 
     def test_multi_test_reference_is_focused_for_bug_and_verified_by_name(self) -> None:
         source = Path(__file__).resolve().parents[1] / "cases" / "fmt-4490"
