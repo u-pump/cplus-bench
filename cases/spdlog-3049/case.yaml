@@ -1,0 +1,21 @@
+{
+  "id": "spdlog-3049",
+  "repo": "https://github.com/gabime/spdlog.git",
+  "base": "6766f873d680e696c29541dbd144f4ef0785f547",
+  "upstream_fix": "6725584e27ca93f50527165696d7cf34e3978373",
+  "bug_test": "multithread flush",
+  "issue_url": "https://github.com/gabime/spdlog/pull/3049",
+  "fix_url": "https://github.com/gabime/spdlog/commit/6725584e27ca93f50527165696d7cf34e3978373",
+  "license": "MIT",
+  "category": "concurrent async flush / TSan",
+  "build": "cmake -S . -B build -DSPDLOG_BUILD_TESTS=ON -DCMAKE_CXX_FLAGS='-fsanitize=thread -fno-omit-frame-pointer' -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=thread' && cmake --build build",
+  "test": "ctest --test-dir build --output-on-failure",
+  "baseline_reproduction": {
+    "verdict": "REPRODUCED",
+    "runs": "3/3",
+    "elapsed_s": 223.5
+  },
+  "agent_input_repo": "https://github.com/u-pump/bench-in-spdlog-3049",
+  "input_sha256": "0588b22088963628168a9d762bee1bd2fd31397a559554e7bc62bc7d0b353156",
+  "agent": null
+}

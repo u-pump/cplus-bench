@@ -1,0 +1,21 @@
+{
+  "id": "fmt-4933",
+  "repo": "https://github.com/fmtlib/fmt.git",
+  "base": "8dc5d3f69f15417d13c60a4a21f7298ed24db41c",
+  "upstream_fix": "854fc9567a2cbea01b0f413565705ccbaf5bde5c",
+  "bug_test": "args_test.named_arg_count",
+  "issue_url": "https://github.com/fmtlib/fmt/pull/4933",
+  "fix_url": "https://github.com/fmtlib/fmt/commit/854fc9567a2cbea01b0f413565705ccbaf5bde5c",
+  "license": "MIT",
+  "category": "argument counting / logic",
+  "build": "cmake -S . -B build -DFMT_TEST=ON && cmake --build build --target args-test",
+  "test": "ctest --test-dir build -R args-test --output-on-failure",
+  "baseline_reproduction": {
+    "verdict": "REPRODUCED",
+    "runs": "3/3",
+    "elapsed_s": 61.1
+  },
+  "agent_input_repo": "https://github.com/u-pump/bench-in-fmt-4933",
+  "input_sha256": "4524d92b0b8ccc42bc0544b4e9c71f83252eaf19d9aa21583a18f56302d398e3",
+  "agent": null
+}
