@@ -1,0 +1,62 @@
+diff --git a/include/fmt/printf.h b/include/fmt/printf.h
+index 8d792fb..af8dea1 100644
+--- a/include/fmt/printf.h
++++ b/include/fmt/printf.h
+@@ -255,6 +255,19 @@ class printf_arg_formatter : public arg_formatter<Char> {
+ 
+   template <typename T, FMT_ENABLE_IF(detail::is_integral<T>::value)>
+   void operator()(T value) {
++    auto type = this->specs.type();
++    if (value == 0 && this->specs.precision == 0 &&
++        (type == presentation_type::dec || type == presentation_type::oct ||
++         type == presentation_type::hex)) {
++      char result[2];
++      size_t size = 0;
++      if (this->specs.sign() == sign::plus) result[size++] = '+';
++      if (this->specs.sign() == sign::space) result[size++] = ' ';
++      if (type == presentation_type::oct && this->specs.alt())
++        result[size++] = '0';
++      write_bytes<Char, align::right>(this->out, {result, size}, this->specs);
++      return;
++    }
+     // MSVC2013 fails to compile separate overloads for bool and Char so use
+     // std::is_same instead.
+     if (!std::is_same<T, Char>::value) {
+@@ -490,7 +503,8 @@ void vprintf(buffer<Char>& buf, basic_string_view<Char> format,
+           str, to_unsigned(nul != str_end ? nul - str : specs.precision));
+       arg = sv;
+     }
+-    if (specs.alt() && arg.visit(is_zero_int())) specs.clear_alt();
++    if (specs.alt() && specs.precision != 0 && arg.visit(is_zero_int()))
++      specs.clear_alt();
+     if (specs.fill_unit<Char>() == '0') {
+       if (is_arithmetic_type(arg.type()) && specs.align() != align::left) {
+         specs.set_align(align::numeric);
+diff --git a/test/printf-test.cc b/test/printf-test.cc
+index baf2b16..c601fb5 100644
+--- a/test/printf-test.cc
++++ b/test/printf-test.cc
+@@ -258,6 +258,15 @@ TEST(printf_test, dynamic_width) {
+ }
+ 
+ TEST(printf_test, int_precision) {
++  EXPECT_PRINTF("", "%.0d", 0);
++  EXPECT_PRINTF("", "%.0x", 0);
++  EXPECT_PRINTF("", "%.0o", 0);
++  EXPECT_PRINTF("0", "%#.0o", 0);
++  EXPECT_PRINTF("", "%#.0x", 0);
++  EXPECT_PRINTF("+", "%+.0d", 0);
++  EXPECT_PRINTF("     ", "%5.0d", 0);
++  EXPECT_PRINTF("0    ", "%-#5.0o", 0);
++
+   EXPECT_PRINTF("00042", "%.5d", 42);
+   EXPECT_PRINTF("-00042", "%.5d", -42);
+   EXPECT_PRINTF("00042", "%.5x", 0x42);
+@@ -298,6 +307,7 @@ TEST(printf_test, ignore_precision_for_non_numeric_arg) {
+ }
+ 
+ TEST(printf_test, dynamic_precision) {
++  EXPECT_EQ("", test_sprintf("%.*d", 0, 0));
+   EXPECT_EQ("00042", test_sprintf("%.*d", 5, 42));
+   EXPECT_EQ("42", test_sprintf("%.*d", -5, 42));
+   EXPECT_THROW_MSG(test_sprintf("%.*d", 5.0, 42), format_error,

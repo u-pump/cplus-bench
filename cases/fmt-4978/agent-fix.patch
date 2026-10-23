@@ -1,0 +1,45 @@
+diff --git a/include/fmt/chrono.h b/include/fmt/chrono.h
+index 220e464..e60464e 100644
+--- a/include/fmt/chrono.h
++++ b/include/fmt/chrono.h
+@@ -2038,6 +2038,19 @@ struct formatter<year_month_day, Char> : private formatter<std::tm, Char> {
+     time.tm_year = static_cast<int>(val.year()) - 1900;
+     time.tm_mon = static_cast<int>(static_cast<unsigned>(val.month())) - 1;
+     time.tm_mday = static_cast<int>(static_cast<unsigned>(val.day()));
++    if (time.tm_mon >= 0 && time.tm_mon < 12 && time.tm_mday >= 1 &&
++        time.tm_mday <= 31) {
++      static const int month_offsets[] = {0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4};
++      static const int month_days[] = {0, 31, 59, 90, 120, 151, 181,
++                                       212, 243, 273, 304, 334};
++      auto year = static_cast<int>(val.year());
++      auto leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
++      time.tm_yday = month_days[time.tm_mon] + time.tm_mday - 1 +
++                     (time.tm_mon > 1 && leap);
++      auto y = (year % 400 + 400) % 400 + 400 - (time.tm_mon < 2);
++      time.tm_wday = (y + y / 4 - y / 100 + y / 400 +
++                      month_offsets[time.tm_mon] + time.tm_mday) % 7;
++    }
+     if (use_tm_formatter_) return formatter<std::tm, Char>::format(time, ctx);
+     auto w = detail::tm_writer<decltype(ctx.out()), Char>(locale_ref(), false,
+                                                           ctx.out(), time);
+diff --git a/test/chrono-test.cc b/test/chrono-test.cc
+index ece1175..576fcf6 100644
+--- a/test/chrono-test.cc
++++ b/test/chrono-test.cc
+@@ -1082,6 +1082,16 @@ TEST(chrono_test, year_month_day) {
+   EXPECT_EQ(fmt::format("{:%Y-%m-%d}", ymd), "2024-01-01");
+   EXPECT_EQ(fmt::format("{:%Y-%b-%d}", ymd), "2024-Jan-01");
+   EXPECT_EQ(fmt::format("{:%Y-%B-%d}", ymd), "2024-January-01");
++  EXPECT_EQ(fmt::format("{:%A %w %j %G-W%V}", ymd),
++            "Monday 1 001 2024-W01");
++  EXPECT_EQ(fmt::format("{:%A %j}",
++                        fmt::year_month_day(fmt::year(2024), fmt::month(12),
++                                            fmt::day(31))),
++            "Tuesday 366");
++  EXPECT_EQ(fmt::format("{:%A %j}",
++                        fmt::year_month_day(fmt::year(2023), fmt::month(12),
++                                            fmt::day(31))),
++            "Sunday 365");
+ 
+   if (loc != std::locale::classic()) {
+     auto months = std::vector<std::string>{"ene.", "ene"};

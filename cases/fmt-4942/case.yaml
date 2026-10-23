@@ -17,5 +17,16 @@
   },
   "agent_input_repo": "https://github.com/u-pump/bench-in-fmt-4942",
   "input_sha256": "a39d27ee29db9d3e0e6af69265240cf150efea781c5cccf2719775a13a3a5509",
-  "agent": null
+  "agent": {
+    "name": "Codex CLI",
+    "version": "0.164.0",
+    "model": "gpt-6-sol",
+    "reasoning": "medium",
+    "date_utc": "2026-10-23",
+    "environment": "local Windows, MSVC 2019 Build Tools",
+    "invocation": "codex exec --sandbox workspace-write",
+    "session_id": "01a16a8d-34fb-7ab3-a812-97cf861531aa",
+    "patch_sha256": "ab7eb00db09f6151ec77637d39f5599c62730269d4ede6e191b474840a599a7b"
+  },
+  "attempt_note": "First attempt had a network failure before any command; second attempt counted."
 }
