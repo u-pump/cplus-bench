@@ -11,7 +11,7 @@ $caseDir = Join-Path $benchRoot "cases/$CaseId"
 $patchPath = Join-Path $caseDir 'agent-fix.patch'
 $agentRoot = 'D:\bench-agent'
 $checkout = Join-Path $agentRoot $CaseId
-$logDir = Join-Path $benchRoot '.tmp/agent-runs'
+$logDir = 'D:\c-plus-codex\.tmp\agent-runs'
 $logPath = Join-Path $logDir "$CaseId-$(Get-Date -Format 'yyyyMMdd-HHmmss').jsonl"
 $repo = "u-pump/bench-in-$CaseId"
 

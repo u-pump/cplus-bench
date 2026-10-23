@@ -6,6 +6,6 @@
 pwsh -File scripts/run-agent-local.ps1 <id>
 ```
 
-Скрипт клонирует один коммит в `D:\bench-agent\<id>`, передаёт неизменённый `TASK.md` в `codex exec`, печатает модель и версию Codex CLI, сохраняет первый diff в `cases/<id>/agent-fix.patch` без каталогов `build*/`, выводит SHA-256 и удаляет клон. JSONL-журнал остаётся в `.tmp/agent-runs/`. Для другой модели используйте `-Model <name>`.
+Скрипт клонирует один коммит в `D:\bench-agent\<id>`, передаёт неизменённый `TASK.md` в `codex exec`, печатает модель и версию Codex CLI, сохраняет первый diff в `cases/<id>/agent-fix.patch` без каталогов `build*/`, выводит SHA-256 и удаляет клон. JSONL-журнал остаётся в `D:\c-plus-codex\.tmp\agent-runs/`. Для другой модели используйте `-Model <name>`.
 
 После запуска заполните данные агента и `patch_sha256` в `case.yaml`, затем отправьте отдельный PR с патчем в `cplus-bench`. Не редактируйте патч и не повторяйте попытку в том же кейсе.
