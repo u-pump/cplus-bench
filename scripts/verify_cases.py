@@ -26,7 +26,7 @@ GATES = (
 )
 STATUSES = {"PASS", "FAIL", "ERROR", "REVIEW", "SKIPPED"}
 VERDICTS = {"VERIFIED", "REJECTED", "REVIEW", "NOT_VERIFIABLE", "ERROR"}
-VERIFIER_REVISION = "e9c5ad9c3c63ac1b5a0a1366a122d17f0f226ab6"
+VERIFIER_REVISION = "fb95bec48fa1d9872b96fd429f50984529e76a86"
 
 
 class CaseExecutionError(RuntimeError):
@@ -40,6 +40,14 @@ class CaseExecutionError(RuntimeError):
 
 def quiet(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
     return subprocess.run(args, cwd=cwd, text=True, capture_output=True, check=False)
+
+
+def quiet_stage(stage: str, reason: str, *args: str,
+                cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+    try:
+        return quiet(*args, cwd=cwd)
+    except OSError as exc:
+        raise CaseExecutionError(stage, reason) from exc
 
 
 def selected_cases() -> list[str]:
@@ -136,13 +144,16 @@ def run_case(case_id: str) -> tuple[str, dict[str, str], float | None, str | Non
         return "PENDING", {}, None, None
     scratch = TEMP / "case-checkouts" / case_id
     scratch.parent.mkdir(parents=True, exist_ok=True)
-    clone = quiet("git", "clone", "--quiet", "--no-checkout", case["repo"], str(scratch))
+    clone = quiet_stage("clone", "source repository unavailable", "git", "clone", "--quiet",
+                        "--no-checkout", case["repo"], str(scratch))
     if clone.returncode:
         raise CaseExecutionError("clone", "source repository unavailable")
     base, fix = case["base"], case["upstream_fix"]
-    if quiet("git", "checkout", "--quiet", "--detach", base, cwd=scratch).returncode:
+    if quiet_stage("checkout base", "base revision unavailable", "git", "checkout",
+                   "--quiet", "--detach", base, cwd=scratch).returncode:
         raise CaseExecutionError("checkout base", "base revision unavailable")
-    fix_patch = quiet("git", "diff", base, fix, cwd=scratch)
+    fix_patch = quiet_stage("upstream fix", "reference revision unavailable", "git", "diff",
+                            base, fix, cwd=scratch)
     if fix_patch.returncode or not fix_patch.stdout:
         raise CaseExecutionError("upstream fix", "reference revision unavailable")
     upstream_patch = TEMP / f"{case_id}-upstream.patch"
@@ -153,21 +164,38 @@ def run_case(case_id: str) -> tuple[str, dict[str, str], float | None, str | Non
               "- test/**\n- tests/**\n- .github/**\n- '**/*.supp'\n")
     (scratch / "cplus.yaml").write_text(config, encoding="utf-8")
     spec = TEMP / f"{case_id}-bug-spec.json"
-    bug = quiet("cplus", "bug", "--project", str(scratch), "--from-fix",
-                str(upstream_patch), "--export", str(spec))
+    reference_name = case.get("reference_test_name")
+    if reference_name is not None and (
+        not isinstance(reference_name, str)
+        or not re.fullmatch(r"[A-Za-z_]\w*\.[A-Za-z_]\w*", reference_name)
+    ):
+        raise CaseExecutionError("parse", "invalid reference test selection")
+    bug_args = ["cplus", "bug", "--project", str(scratch), "--from-fix",
+                str(upstream_patch), "--export", str(spec)]
+    if reference_name is not None:
+        bug_args.extend(("--command", f"GTEST_FILTER={reference_name} {case['test']}"))
+    bug = quiet_stage("cplus bug baseline", "reference test did not reproduce", *bug_args)
     if bug.returncode or "REPRODUCED" not in bug.stdout or not spec.is_file():
         raise CaseExecutionError("cplus bug baseline", "reference test did not reproduce")
     started = time.monotonic()
-    verify = quiet("cplus", "verify", "--project", str(scratch), "--patch",
+    verify_args = ["cplus", "verify", "--project", str(scratch), "--patch",
                    str(patch), "--bug-spec", str(spec),
-                   "--reference-test-from-fix", str(upstream_patch), "--json")
+                   "--reference-test-from-fix", str(upstream_patch), "--json"]
+    if reference_name is not None:
+        verify_args.extend(("--reference-test-name", reference_name))
+    verify = quiet_stage("verify", "verifier could not evaluate patch", *verify_args)
     elapsed = time.monotonic() - started
     try:
         report = extract_json(verify.stdout)
     except ValueError as exc:
         raise CaseExecutionError("parse", "no valid verifier result") from exc
     verdict = report.get("verdict")
-    if report.get("infrastructure_error"):
+    infrastructure = report.get("infrastructure_error")
+    if infrastructure:
+        if isinstance(infrastructure, str) and "reference test has no unique test name" in infrastructure:
+            raise CaseExecutionError("verify", "upstream reference test could not be selected")
+        if isinstance(infrastructure, str) and "did not reproduce the bug after revert" in infrastructure:
+            raise CaseExecutionError("verify", "reference failure was absent after source revert")
         raise CaseExecutionError("verify", "verifier could not evaluate patch")
     if verdict not in VERDICTS:
         raise CaseExecutionError("parse", "invalid verifier verdict")
@@ -180,8 +208,12 @@ def run_case(case_id: str) -> tuple[str, dict[str, str], float | None, str | Non
         if not isinstance(gate, dict):
             raise CaseExecutionError("parse", "invalid verifier result")
         name, status = gate.get("name"), gate.get("status")
-        if name not in GATES or status not in STATUSES:
+        if status not in STATUSES:
             raise CaseExecutionError("parse", "invalid verifier result")
+        if name not in GATES:
+            # The verifier may include a diagnostic gate on an inconclusive result.
+            # Keep its name and evidence out of the public summary.
+            continue
         gates[str(name)] = str(status)
         if status == "FAIL" and reason is None:
             reason = gate_reason(gate)
