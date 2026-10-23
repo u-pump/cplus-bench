@@ -1,8 +1,7 @@
 param(
     [Parameter(Mandatory = $true, Position = 0)]
     [ValidatePattern('^[a-z0-9][a-z0-9-]*$')]
-    [string]$CaseId,
-    [string]$Model = 'gpt-6-sol'
+    [string]$CaseId
 )
 
 $ErrorActionPreference = 'Stop'
@@ -12,7 +11,9 @@ $patchPath = Join-Path $caseDir 'agent-fix.patch'
 $agentRoot = 'D:\bench-agent'
 $checkout = Join-Path $agentRoot $CaseId
 $logDir = 'D:\c-plus-codex\.tmp\agent-runs'
-$logPath = Join-Path $logDir "$CaseId-$(Get-Date -Format 'yyyyMMdd-HHmmss').jsonl"
+$runId = "$CaseId-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+$logPath = Join-Path $logDir "$runId.log"
+$candidatePatch = Join-Path $logDir "$runId.patch"
 $repo = "u-pump/bench-in-$CaseId"
 
 if (-not (Test-Path -LiteralPath $caseDir -PathType Container)) { throw "Unknown case: $CaseId" }
@@ -47,22 +48,40 @@ try {
     $env:GITHUB_TOKEN = $null
 
     $version = (& codex --version).Trim()
-    Write-Host "Agent: $version; model: $Model; sandbox: workspace-write"
-    Write-Host "Event log: $logPath"
-    $task | & codex exec --ignore-user-config --ephemeral --json -C $checkout `
-        -s workspace-write -m $Model -c 'model_reasoning_effort="medium"' `
-        -c 'sandbox_workspace_write.network_access=false' - 2>&1 |
-        Tee-Object -FilePath $logPath
-    $agentExit = $LASTEXITCODE
+    Write-Host "Codex CLI: $version; sandbox: workspace-write"
+    Write-Host "Run log: $logPath"
+    Push-Location -LiteralPath $checkout
+    try {
+        & codex exec --sandbox workspace-write $task 2>&1 | Tee-Object -FilePath $logPath
+        $agentExit = $LASTEXITCODE
+    }
+    finally {
+        Pop-Location
+    }
+
+    $runLog = Get-Content -LiteralPath $logPath -Raw -Encoding UTF8
+    $modelMatch = [regex]::Match($runLog, '(?m)^model:\s*(\S+)')
+    if ($modelMatch.Success) { Write-Host "Model: $($modelMatch.Groups[1].Value)" }
+    $commandStarted = [regex]::IsMatch($runLog, '(?m)^exec\r?$')
+    $commandCompleted = [regex]::IsMatch($runLog, '(?m)^ (?:succeeded|exited \d+) in ')
+    if ($agentExit -ne 0) {
+        if ($runLog -match '(?im)^ERROR:.*(?:network|connection|timed out|routing|transport|reconnect)') {
+            throw "Codex CLI connection failed (exit $agentExit); attempt not recorded. See $logPath"
+        }
+        throw "Codex CLI exited with code $agentExit; attempt not recorded. See $logPath"
+    }
+    if (-not ($commandStarted -and $commandCompleted)) {
+        throw "Codex CLI executed no commands; attempt not recorded. See $logPath"
+    }
 
     git -C $checkout add -A -- . ':(exclude,glob)build*/**' ':(exclude,glob)**/build*/**'
     if ($LASTEXITCODE -ne 0) { throw 'Could not stage agent changes' }
-    git -C $checkout diff --cached --binary --no-ext-diff --output=$patchPath HEAD
+    git -C $checkout diff --cached --binary --no-ext-diff --output=$candidatePatch HEAD
     if ($LASTEXITCODE -ne 0) { throw 'Could not save agent patch' }
+    Copy-Item -LiteralPath $candidatePatch -Destination $patchPath
     $hash = (Get-FileHash -LiteralPath $patchPath -Algorithm SHA256).Hash.ToLowerInvariant()
     Write-Host "Patch: $patchPath"
     Write-Host "SHA-256: $hash"
-    if ($agentExit -ne 0) { throw "Codex CLI exited with code $agentExit; inspect event log" }
 }
 finally {
     $env:GH_TOKEN = $oldGhToken

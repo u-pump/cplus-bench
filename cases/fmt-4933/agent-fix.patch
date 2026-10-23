@@ -1,0 +1,35 @@
+diff --git a/include/fmt/args.h b/include/fmt/args.h
+index 3283e6f..4825de6 100644
+--- a/include/fmt/args.h
++++ b/include/fmt/args.h
+@@ -210,7 +210,9 @@ FMT_EXPORT template <typename Context> class dynamic_format_arg_store {
+   }
+ 
+   /// Returns the number of elements in the store.
+-  auto size() const noexcept -> size_t { return data_.size(); }
++  auto size() const noexcept -> size_t {
++    return data_.size() - !named_info_.empty();
++  }
+ };
+ 
+ FMT_END_NAMESPACE
+diff --git a/test/args-test.cc b/test/args-test.cc
+index 8e9f53e..5fac7a3 100644
+--- a/test/args-test.cc
++++ b/test/args-test.cc
+@@ -197,6 +197,15 @@ TEST(args_test, size) {
+   store.push_back("Molybdenum");
+   EXPECT_EQ(store.size(), 2);
+ 
++  store.push_back(fmt::arg("named", 42));
++  EXPECT_EQ(store.size(), 3);
++
++  store.push_back(fmt::arg("other", 43));
++  EXPECT_EQ(store.size(), 4);
++
+   store.clear();
+   EXPECT_EQ(store.size(), 0);
++
++  store.push_back(fmt::arg("named", 42));
++  EXPECT_EQ(store.size(), 1);
+ }

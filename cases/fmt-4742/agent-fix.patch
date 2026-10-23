@@ -1,0 +1,24 @@
+diff --git a/include/fmt/printf.h b/include/fmt/printf.h
+index c2e9229..8e133b7 100644
+--- a/include/fmt/printf.h
++++ b/include/fmt/printf.h
+@@ -499,7 +499,8 @@ void vprintf(buffer<Char>& buf, basic_string_view<Char> format,
+     }
+ 
+     // Parse length and convert the argument to the required type.
+-    c = it != end ? *it++ : 0;
++    if (it == end) report_error("invalid format string");
++    c = *it++;
+     Char t = it != end ? *it : 0;
+     switch (c) {
+     case 'h':
+diff --git a/test/printf-test.cc b/test/printf-test.cc
+index 354143b..ef40a05 100644
+--- a/test/printf-test.cc
++++ b/test/printf-test.cc
+@@ -560,4 +560,5 @@ TEST(printf_test, make_printf_args) {
+ TEST(printf_test, trailing_percent_non_nul_terminated) {
+   auto p = std::unique_ptr<char>(new char('%'));
+   EXPECT_THROW(fmt::sprintf(fmt::string_view(p.get(), 1)), format_error);
++  EXPECT_THROW(fmt::sprintf(fmt::string_view(p.get(), 1), 42), format_error);
+ }

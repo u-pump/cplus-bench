@@ -1,0 +1,127 @@
+diff --git a/include/spdlog/async_logger-inl.h b/include/spdlog/async_logger-inl.h
+index 1e79479..70cadad 100644
+--- a/include/spdlog/async_logger-inl.h
++++ b/include/spdlog/async_logger-inl.h
+@@ -45,7 +45,7 @@ SPDLOG_LOGGER_CATCH(msg.source)
+ // send flush request to the thread pool
+ SPDLOG_INLINE void spdlog::async_logger::flush_(){
+     SPDLOG_TRY{if (auto pool_ptr = thread_pool_.lock()){
+-        pool_ptr->post_flush(shared_from_this(), overflow_policy_);
++        pool_ptr->post_flush(shared_from_this());
+ }
+ else {
+     throw_spdlog_ex("async flush: thread pool doesn't exist anymore");
+diff --git a/include/spdlog/details/thread_pool-inl.h b/include/spdlog/details/thread_pool-inl.h
+index 17e01c0..b6601a2 100644
+--- a/include/spdlog/details/thread_pool-inl.h
++++ b/include/spdlog/details/thread_pool-inl.h
+@@ -62,9 +62,13 @@ void SPDLOG_INLINE thread_pool::post_log(async_logger_ptr &&worker_ptr,
+     post_async_msg_(std::move(async_m), overflow_policy);
+ }
+ 
+-void SPDLOG_INLINE thread_pool::post_flush(async_logger_ptr &&worker_ptr,
+-                                           async_overflow_policy overflow_policy) {
+-    post_async_msg_(async_msg(std::move(worker_ptr), async_msg_type::flush), overflow_policy);
++void SPDLOG_INLINE thread_pool::post_flush(async_logger_ptr &&worker_ptr) {
++    auto promise = std::make_shared<std::promise<void>>();
++    auto completion = promise->get_future();
++    async_msg msg(std::move(worker_ptr), async_msg_type::flush);
++    msg.flush_promise = std::move(promise);
++    post_async_msg_(std::move(msg), async_overflow_policy::block);
++    completion.get();
+ }
+ 
+ size_t SPDLOG_INLINE thread_pool::overrun_counter() { return q_.overrun_counter(); }
+@@ -108,6 +112,7 @@ bool SPDLOG_INLINE thread_pool::process_next_msg_() {
+         }
+         case async_msg_type::flush: {
+             incoming_async_msg.worker_ptr->backend_flush_();
++            incoming_async_msg.flush_promise->set_value();
+             return true;
+         }
+ 
+diff --git a/include/spdlog/details/thread_pool.h b/include/spdlog/details/thread_pool.h
+index f22b078..0eff768 100644
+--- a/include/spdlog/details/thread_pool.h
++++ b/include/spdlog/details/thread_pool.h
+@@ -9,6 +9,7 @@
+ 
+ #include <chrono>
+ #include <functional>
++#include <future>
+ #include <memory>
+ #include <thread>
+ #include <vector>
+@@ -27,6 +28,7 @@ enum class async_msg_type { log, flush, terminate };
+ struct async_msg : log_msg_buffer {
+     async_msg_type msg_type{async_msg_type::log};
+     async_logger_ptr worker_ptr;
++    std::shared_ptr<std::promise<void>> flush_promise;
+ 
+     async_msg() = default;
+     ~async_msg() = default;
+@@ -39,12 +41,14 @@ struct async_msg : log_msg_buffer {
+     async_msg(async_msg &&other)
+         : log_msg_buffer(std::move(other)),
+           msg_type(other.msg_type),
+-          worker_ptr(std::move(other.worker_ptr)) {}
++          worker_ptr(std::move(other.worker_ptr)),
++          flush_promise(std::move(other.flush_promise)) {}
+ 
+     async_msg &operator=(async_msg &&other) {
+         *static_cast<log_msg_buffer *>(this) = std::move(other);
+         msg_type = other.msg_type;
+         worker_ptr = std::move(other.worker_ptr);
++        flush_promise = std::move(other.flush_promise);
+         return *this;
+     }
+ #else  // (_MSC_VER) && _MSC_VER <= 1800
+@@ -88,7 +92,7 @@ public:
+     void post_log(async_logger_ptr &&worker_ptr,
+                   const details::log_msg &msg,
+                   async_overflow_policy overflow_policy);
+-    void post_flush(async_logger_ptr &&worker_ptr, async_overflow_policy overflow_policy);
++    void post_flush(async_logger_ptr &&worker_ptr);
+     size_t overrun_counter();
+     void reset_overrun_counter();
+     size_t discard_counter();
+diff --git a/tests/test_async.cpp b/tests/test_async.cpp
+index 76fdd7c..c26728a 100644
+--- a/tests/test_async.cpp
++++ b/tests/test_async.cpp
+@@ -93,6 +93,35 @@ TEST_CASE("flush", "[async]") {
+     REQUIRE(test_sink->flush_counter() == 1);
+ }
+ 
++TEST_CASE("concurrent flush waits for each caller", "[async]") {
++    constexpr size_t n_threads = 8;
++    constexpr size_t messages = 5;
++    auto tp = std::make_shared<spdlog::details::thread_pool>(128, 1);
++    std::atomic<size_t> incomplete{0};
++    std::vector<std::thread> threads;
++
++    for (size_t i = 0; i < n_threads; ++i) {
++        threads.emplace_back([&, i] {
++            auto sink = std::make_shared<spdlog::sinks::test_sink_mt>();
++            sink->set_delay(std::chrono::milliseconds(2));
++            auto logger = std::make_shared<spdlog::async_logger>(
++                std::to_string(i), sink, tp, spdlog::async_overflow_policy::block);
++            for (size_t j = 0; j < messages; ++j) {
++                logger->info("message");
++            }
++            logger->flush();
++            if (sink->msg_counter() != messages || sink->flush_counter() != 1) {
++                ++incomplete;
++            }
++        });
++    }
++
++    for (auto &thread : threads) {
++        thread.join();
++    }
++    REQUIRE(incomplete == 0);
++}
++
+ TEST_CASE("async periodic flush", "[async]") {
+     auto logger = spdlog::create_async<spdlog::sinks::test_sink_mt>("as");
+     auto test_sink = std::static_pointer_cast<spdlog::sinks::test_sink_mt>(logger->sinks()[0]);

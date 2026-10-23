@@ -1,0 +1,30 @@
+diff --git a/include/fmt/format.h b/include/fmt/format.h
+index bd55b9b..b3f5018 100644
+--- a/include/fmt/format.h
++++ b/include/fmt/format.h
+@@ -3674,7 +3674,8 @@ FMT_CONSTEXPR20 auto format_float(Float value, int precision,
+     // Limit precision to the maximum possible number of significant digits in
+     // an IEEE754 double because we don't need to generate zeros.
+     const int max_double_digits = 767;
+-    if (precision > max_double_digits) precision = max_double_digits;
++    if (is_fast_float<Float>() && precision > max_double_digits)
++      precision = max_double_digits;
+     format_dragon(f, dragon_flags, precision, buf, exp);
+   }
+   if (!fixed && !specs.alt()) {
+diff --git a/test/format-test.cc b/test/format-test.cc
+index 0942000..1cb8610 100644
+--- a/test/format-test.cc
++++ b/test/format-test.cc
+@@ -1636,6 +1636,11 @@ TEST(format_test, format_double) {
+ }
+ 
+ TEST(format_test, precision_rounding) {
++  if (std::numeric_limits<long double>::min_exponent < -1100) {
++    auto s = fmt::format("{:.1100f}", std::ldexp(1.0L, -1100));
++    EXPECT_EQ(s.size(), 1102u);
++    EXPECT_EQ(s.substr(s.size() - 3), "625");
++  }
+   EXPECT_EQ(fmt::format("{:.0f}", 0.0), "0");
+   EXPECT_EQ(fmt::format("{:.0f}", 0.01), "0");
+   EXPECT_EQ(fmt::format("{:.0f}", 0.1), "0");

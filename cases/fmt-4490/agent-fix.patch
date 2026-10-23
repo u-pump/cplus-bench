@@ -1,0 +1,74 @@
+diff --git a/include/fmt/format.h b/include/fmt/format.h
+index 25153a4..e83a770 100644
+--- a/include/fmt/format.h
++++ b/include/fmt/format.h
+@@ -828,7 +828,6 @@ class basic_memory_buffer : public detail::buffer<T> {
+  private:
+   // Move data from other to this buffer.
+   FMT_CONSTEXPR20 void move(basic_memory_buffer& other) {
+-    alloc_ = std::move(other.alloc_);
+     T* data = other.data();
+     size_t size = other.size(), capacity = other.capacity();
+     if (data == other.store_) {
+@@ -848,14 +847,24 @@ class basic_memory_buffer : public detail::buffer<T> {
+   /// Constructs a `basic_memory_buffer` object moving the content of the other
+   /// object to it.
+   FMT_CONSTEXPR20 basic_memory_buffer(basic_memory_buffer&& other) noexcept
+-      : detail::buffer<T>(grow) {
++      : detail::buffer<T>(grow), alloc_(std::move(other.alloc_)) {
+     move(other);
+   }
+ 
+   /// Moves the content of the other `basic_memory_buffer` object to this one.
+-  auto operator=(basic_memory_buffer&& other) noexcept -> basic_memory_buffer& {
++  auto operator=(basic_memory_buffer&& other) -> basic_memory_buffer& {
+     FMT_ASSERT(this != &other, "");
++    if (!std::allocator_traits<Allocator>::propagate_on_container_move_assignment::value &&
++        !std::is_empty<Allocator>::value) {
++      basic_memory_buffer copy(alloc_);
++      copy.append(other.data(), other.data() + other.size());
++      deallocate();
++      move(copy);
++      return *this;
++    }
+     deallocate();
++    if (std::allocator_traits<Allocator>::propagate_on_container_move_assignment::value)
++      alloc_ = std::move(other.alloc_);
+     move(other);
+     return *this;
+   }
+diff --git a/test/format-test.cc b/test/format-test.cc
+index a303cf0..6f0f8b2 100644
+--- a/test/format-test.cc
++++ b/test/format-test.cc
+@@ -382,6 +382,30 @@ TEST(memory_buffer_test, move_assignment) {
+   EXPECT_GT(buffer2.capacity(), 5u);
+ }
+ 
++TEST(memory_buffer_test, move_assignment_nonpropagating_allocator) {
++  using buffer = basic_memory_buffer<char, 4, allocator_ref<mock_allocator<char>>>;
++  StrictMock<mock_allocator<char>> source_alloc, target_alloc;
++  char source_mem[6], old_target_mem[6], new_target_mem[6];
++  EXPECT_CALL(source_alloc, allocate(6)).WillOnce(Return(source_mem));
++  EXPECT_CALL(target_alloc, allocate(6))
++      .WillOnce(Return(old_target_mem))
++      .WillOnce(Return(new_target_mem));
++  EXPECT_CALL(target_alloc, deallocate(old_target_mem, 6));
++  EXPECT_CALL(target_alloc, deallocate(new_target_mem, 6));
++  EXPECT_CALL(source_alloc, deallocate(source_mem, 6));
++  {
++    buffer source((allocator_ref<mock_allocator<char>>(&source_alloc)));
++    buffer target((allocator_ref<mock_allocator<char>>(&target_alloc)));
++    source.append("source", "source" + 6);
++    target.append("target", "target" + 6);
++    target = std::move(source);
++    EXPECT_EQ(&target_alloc, target.get_allocator().get());
++    EXPECT_EQ("source", std::string(target.data(), target.size()));
++    EXPECT_EQ("source", std::string(source.data(), source.size()));
++    EXPECT_EQ(new_target_mem, target.data());
++  }
++}
++
+ TEST(memory_buffer_test, grow) {
+   using allocator = allocator_ref<mock_allocator<int>>;
+   mock_allocator<int> alloc;
