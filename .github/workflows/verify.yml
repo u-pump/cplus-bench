@@ -25,6 +25,8 @@ jobs:
     if: github.actor == 'u-pump'
     runs-on: ubuntu-latest
     timeout-minutes: 180
+    outputs:
+      results_available: ${{ steps.results.outputs.available }}
     env:
       BEFORE_SHA: ${{ github.event.before }}
       HEAD_SHA: ${{ github.sha }}
@@ -41,23 +43,34 @@ jobs:
         id: patches
         run: echo "has_patch=$(python scripts/verify_cases.py --has-patches)" >> "$GITHUB_OUTPUT"
       - name: Install private verifier
+        id: install
         if: steps.patches.outputs.has_patch == 'true'
         env:
           CPLUS_READ_TOKEN: ${{ secrets.CPLUS_READ_TOKEN }}
         run: bash scripts/install_private.sh
       - name: Verify cases
+        id: verify_cases
         env:
           CPLUS_DATA_DIR: ${{ runner.temp }}/cplus-data
+          RESULTS_DIR: ${{ runner.temp }}/public-results
         run: python scripts/verify_cases.py
+      - name: Detect generated results
+        id: results
+        if: ${{ always() && (steps.install.outcome == 'success' || steps.install.outcome == 'skipped') && (steps.verify_cases.outcome == 'success' || steps.verify_cases.outcome == 'failure') }}
+        run: |
+          if compgen -G "$RUNNER_TEMP/public-results/*.md" > /dev/null; then
+            echo 'available=true' >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: ${{ always() && steps.results.outputs.available == 'true' }}
         with:
           name: public-results
-          path: results/*.md
+          path: ${{ runner.temp }}/public-results/*.md
           if-no-files-found: error
           retention-days: 1
 
   publish:
-    if: github.actor == 'u-pump'
+    if: ${{ always() && github.actor == 'u-pump' && github.ref == 'refs/heads/main' && needs.verify.outputs.results_available == 'true' }}
     needs: verify
     runs-on: ubuntu-latest
     permissions:

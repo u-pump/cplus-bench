@@ -13,6 +13,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TEMP = Path(os.environ.get("RUNNER_TEMP", str(ROOT / ".tmp")))
+RESULTS_DIR = Path(os.environ.get("RESULTS_DIR", str(ROOT / "results")))
 GATES = (
     "anti_cheat",
     "build:baseline",
@@ -26,6 +27,15 @@ GATES = (
 STATUSES = {"PASS", "FAIL", "ERROR", "REVIEW", "SKIPPED"}
 VERDICTS = {"VERIFIED", "REJECTED", "REVIEW", "NOT_VERIFIABLE", "ERROR"}
 VERIFIER_REVISION = "e9c5ad9c3c63ac1b5a0a1366a122d17f0f226ab6"
+
+
+class CaseExecutionError(RuntimeError):
+    """An infrastructure failure with an allowlisted public stage and reason."""
+
+    def __init__(self, stage: str, reason: str) -> None:
+        self.stage = stage
+        self.public_reason = f"{stage}: {reason}"
+        super().__init__(self.public_reason)
 
 
 def quiet(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
@@ -115,22 +125,26 @@ def render(case_id: str, verdict: str, gates: dict[str, str], seconds: float | N
 def run_case(case_id: str) -> tuple[str, dict[str, str], float | None, str | None]:
     case_dir = ROOT / "cases" / case_id
     if not case_dir.is_dir():
-        raise ValueError("Case missing")
-    case = json.loads((case_dir / "case.yaml").read_text(encoding="utf-8"))
-    patch = case_dir / "agent-fix.patch"
-    if not patch.read_bytes().strip():
+        raise CaseExecutionError("parse", "case metadata unavailable")
+    try:
+        case = json.loads((case_dir / "case.yaml").read_text(encoding="utf-8"))
+        patch = case_dir / "agent-fix.patch"
+        patch_bytes = patch.read_bytes()
+    except (OSError, ValueError) as exc:
+        raise CaseExecutionError("parse", "case metadata unavailable") from exc
+    if not patch_bytes.strip():
         return "PENDING", {}, None, None
     scratch = TEMP / "case-checkouts" / case_id
     scratch.parent.mkdir(parents=True, exist_ok=True)
     clone = quiet("git", "clone", "--quiet", "--no-checkout", case["repo"], str(scratch))
     if clone.returncode:
-        raise RuntimeError("Clone failed")
+        raise CaseExecutionError("clone", "source repository unavailable")
     base, fix = case["base"], case["upstream_fix"]
     if quiet("git", "checkout", "--quiet", "--detach", base, cwd=scratch).returncode:
-        raise RuntimeError("Base unavailable")
+        raise CaseExecutionError("checkout base", "base revision unavailable")
     fix_patch = quiet("git", "diff", base, fix, cwd=scratch)
     if fix_patch.returncode or not fix_patch.stdout:
-        raise RuntimeError("Fix unavailable")
+        raise CaseExecutionError("upstream fix", "reference revision unavailable")
     upstream_patch = TEMP / f"{case_id}-upstream.patch"
     upstream_patch.write_text(fix_patch.stdout, encoding="utf-8")
     config = ("version: 1\nbuild_system: cmake\n"
@@ -142,27 +156,32 @@ def run_case(case_id: str) -> tuple[str, dict[str, str], float | None, str | Non
     bug = quiet("cplus", "bug", "--project", str(scratch), "--from-fix",
                 str(upstream_patch), "--export", str(spec))
     if bug.returncode or "REPRODUCED" not in bug.stdout or not spec.is_file():
-        raise RuntimeError("Baseline not reproduced")
+        raise CaseExecutionError("cplus bug baseline", "reference test did not reproduce")
     started = time.monotonic()
     verify = quiet("cplus", "verify", "--project", str(scratch), "--patch",
                    str(patch), "--bug-spec", str(spec),
                    "--reference-test-from-fix", str(upstream_patch), "--json")
     elapsed = time.monotonic() - started
-    report = extract_json(verify.stdout)
+    try:
+        report = extract_json(verify.stdout)
+    except ValueError as exc:
+        raise CaseExecutionError("parse", "no valid verifier result") from exc
     verdict = report.get("verdict")
-    if verdict not in VERDICTS or report.get("infrastructure_error"):
-        raise RuntimeError("Invalid verifier result")
+    if report.get("infrastructure_error"):
+        raise CaseExecutionError("verify", "verifier could not evaluate patch")
+    if verdict not in VERDICTS:
+        raise CaseExecutionError("parse", "invalid verifier verdict")
     raw_gates = report.get("gates")
     if not isinstance(raw_gates, list):
-        raise RuntimeError("Invalid gate list")
+        raise CaseExecutionError("parse", "invalid verifier result")
     gates: dict[str, str] = {}
     reason: str | None = None
     for gate in raw_gates:
         if not isinstance(gate, dict):
-            raise RuntimeError("Invalid gate")
+            raise CaseExecutionError("parse", "invalid verifier result")
         name, status = gate.get("name"), gate.get("status")
         if name not in GATES or status not in STATUSES:
-            raise RuntimeError("Unexpected gate")
+            raise CaseExecutionError("parse", "invalid verifier result")
         gates[str(name)] = str(status)
         if status == "FAIL" and reason is None:
             reason = gate_reason(gate)
@@ -184,12 +203,14 @@ def main() -> int:
         try:
             agent_name, agent_version = agent_identity(case_id)
             verdict, gates, seconds, reason = run_case(case_id)
-        except Exception:
+        except Exception as exc:
+            public_reason = (exc.public_reason if isinstance(exc, CaseExecutionError)
+                             else "parse: unexpected case processing error")
             verdict, gates, seconds, reason = (
-                "INFRASTRUCTURE_ERROR", {}, None, "case execution failed before a valid verifier result"
+                "INFRASTRUCTURE_ERROR", {}, None, public_reason
             )
             failed = True
-        result = ROOT / "results" / f"{case_id}.md"
+        result = RESULTS_DIR / f"{case_id}.md"
         result.parent.mkdir(parents=True, exist_ok=True)
         result.write_text(
             render(case_id, verdict, gates, seconds, agent_name, agent_version, checked_at_utc,
@@ -197,9 +218,7 @@ def main() -> int:
             encoding="utf-8",
         )
         label = f"{verdict} - no agent fix yet" if verdict == "PENDING" else verdict
-        print(f"{case_id}: {label}")
-        for gate in GATES:
-            print(f"  {gate}: {gates.get(gate, 'SKIPPED')}")
+        print(f"{case_id}: {label}" + (f"; Reason: {reason}" if reason else ""))
     return 1 if failed else 0
 
 
