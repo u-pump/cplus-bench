@@ -1,0 +1,21 @@
+{
+  "id": "zlibng-2465",
+  "repo": "https://github.com/zlib-ng/zlib-ng.git",
+  "base": "75eb731258d9a2dc0fe6180f6d0d45e440da140f",
+  "upstream_fix": "5c8c561acd6e50225a9e0403cee7fd790ec494a7",
+  "bug_test": "inflate.mark_inside_match",
+  "issue_url": "https://github.com/zlib-ng/zlib-ng/pull/2465",
+  "fix_url": "https://github.com/zlib-ng/zlib-ng/commit/5c8c561acd6e50225a9e0403cee7fd790ec494a7",
+  "license": "Zlib",
+  "category": "pure C compression / inflate boundary",
+  "build": "cmake -S . -B build -DWITH_GTEST=ON && cmake --build build --target gtest_zlib",
+  "test": "ctest --test-dir build -R gtest_zlib --output-on-failure",
+  "baseline_reproduction": {
+    "verdict": "REPRODUCED",
+    "runs": "3/3",
+    "elapsed_s": 122.9
+  },
+  "agent_input_repo": "https://github.com/u-pump/bench-in-zlibng-2465",
+  "input_sha256": "00c530e8a1de6a75f9fe51fa18a72fc10a04eb8bff136ae90e9efe2c4f93107f",
+  "agent": null
+}

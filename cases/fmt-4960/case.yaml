@@ -1,0 +1,21 @@
+{
+  "id": "fmt-4960",
+  "repo": "https://github.com/fmtlib/fmt.git",
+  "base": "4afd0e498e9e1dd68775cc52087df774a19c761f",
+  "upstream_fix": "c4927e6086c2aa5bae0f5c2bce791c369c055197",
+  "bug_test": "compile_test.high_precision_constexpr_float",
+  "issue_url": "https://github.com/fmtlib/fmt/pull/4960",
+  "fix_url": "https://github.com/fmtlib/fmt/commit/c4927e6086c2aa5bae0f5c2bce791c369c055197",
+  "license": "MIT",
+  "category": "floating-point precision / boundary",
+  "build": "cmake -S . -B build -DFMT_TEST=ON && cmake --build build --target compile-test format-test",
+  "test": "ctest --test-dir build -R 'compile-test|format-test' --output-on-failure",
+  "baseline_reproduction": {
+    "verdict": "REPRODUCED",
+    "runs": "3/3",
+    "elapsed_s": 80.1
+  },
+  "agent_input_repo": "https://github.com/u-pump/bench-in-fmt-4960",
+  "input_sha256": "359cc815dbbe7833ef87f4c0ef1133fc59f1c4040e1a123f82fb2069f7bc498a",
+  "agent": null
+}
