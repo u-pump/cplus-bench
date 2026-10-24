@@ -14,6 +14,20 @@ import verify_cases
 
 
 class VerifyCasesSmokeTest(unittest.TestCase):
+    def test_reference_selection_is_recorded_for_every_case(self) -> None:
+        case_dirs = sorted((verify_cases.ROOT / "cases").iterdir())
+        self.assertEqual(len(case_dirs), 10)
+        for case_dir in case_dirs:
+            with self.subTest(case=case_dir.name):
+                case = json.loads((case_dir / "case.yaml").read_text(encoding="utf-8"))
+                self.assertEqual(
+                    case["reference_selection"],
+                    "first upstream diff test with a 3/3 base failure",
+                )
+                self.assertTrue(case["bug_test"])
+                if "reference_test_name" in case:
+                    self.assertEqual(case["reference_test_name"], case["bug_test"])
+
     def test_run_case_uses_public_verifier_summary(self) -> None:
         with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[2] / ".tmp") as directory:
             temp = Path(directory)
@@ -68,6 +82,7 @@ class VerifyCasesSmokeTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[2] / ".tmp") as directory:
             root = Path(directory)
             with (patch.object(verify_cases, "ROOT", root),
+                  patch.object(verify_cases, "RESULTS_DIR", root / "results"),
                   patch.object(verify_cases, "selected_cases", return_value=["fmt-4800"]),
                   patch.object(verify_cases, "agent_identity", return_value=("Codex CLI", "0.163.0")),
                   patch.object(verify_cases, "run_case", side_effect=RuntimeError("D:\\runner\\private\\log PRIVATE_CPLUS_LOG")),
@@ -75,9 +90,125 @@ class VerifyCasesSmokeTest(unittest.TestCase):
                 self.assertEqual(verify_cases.main(), 1)
             result = (root / "results" / "fmt-4800.md").read_text(encoding="utf-8")
             self.assertIn("Verdict: **INFRASTRUCTURE_ERROR**", result)
-            self.assertIn("Reason: case execution failed before a valid verifier result", result)
+            self.assertIn("Reason: parse: unexpected case processing error", result)
             self.assertNotIn("D:\\runner", result)
             self.assertNotIn("PRIVATE_CPLUS_LOG", result)
+
+    def test_infrastructure_stages_have_safe_public_reasons(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[2] / ".tmp") as directory:
+            temp = Path(directory)
+
+            def fake_quiet(*args: str, cwd: Path | None = None):
+                if args[:2] == ("git", "clone"):
+                    if broken_stage == "clone":
+                        return completed("", 1)
+                    Path(args[-1]).mkdir(parents=True, exist_ok=True)
+                if args[:2] == ("git", "checkout") and broken_stage == "checkout base":
+                    return completed("", 1)
+                if args[:2] == ("git", "diff"):
+                    return completed("" if broken_stage == "upstream fix" else "diff --git a/a b/a\n")
+                if args[:2] == ("cplus", "bug"):
+                    if broken_stage == "cplus bug baseline":
+                        return completed("", 1)
+                    Path(args[args.index("--export") + 1]).write_text("{}", encoding="utf-8")
+                    return completed("REPRODUCED")
+                if args[:2] == ("cplus", "verify"):
+                    if broken_stage == "parse":
+                        return completed("not JSON")
+                    return completed(json.dumps({"schema_version": 1, "verdict": "ERROR",
+                                                 "infrastructure_error": "PRIVATE_CPLUS_LOG D:\\runner",
+                                                 "gates": []}))
+                return completed("")
+
+            for broken_stage in ("clone", "checkout base", "upstream fix",
+                                 "cplus bug baseline", "verify", "parse"):
+                stage_temp = temp / broken_stage.replace(" ", "-")
+                with (self.subTest(stage=broken_stage),
+                      patch.object(verify_cases, "TEMP", stage_temp),
+                      patch.object(verify_cases, "quiet", side_effect=fake_quiet)):
+                    with self.assertRaises(verify_cases.CaseExecutionError) as caught:
+                        verify_cases.run_case("cpp-peglib-121")
+                self.assertEqual(caught.exception.stage, broken_stage)
+                self.assertNotIn("PRIVATE_CPLUS_LOG", caught.exception.public_reason)
+                self.assertNotIn("D:\\runner", caught.exception.public_reason)
+            with (patch.object(verify_cases, "TEMP", temp / "missing-command"),
+                  patch.object(verify_cases, "quiet", side_effect=FileNotFoundError("D:\\private\\git"))):
+                with self.assertRaises(verify_cases.CaseExecutionError) as caught:
+                    verify_cases.run_case("cpp-peglib-121")
+            self.assertEqual(caught.exception.stage, "clone")
+
+    def test_inconclusive_verifier_diagnostic_stays_out_of_public_report(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[2] / ".tmp") as directory:
+            temp = Path(directory)
+            current_verdict = "NOT_VERIFIABLE"
+
+            def fake_quiet(*args: str, cwd: Path | None = None):
+                if args[:2] == ("git", "clone"):
+                    Path(args[-1]).mkdir(parents=True, exist_ok=True)
+                if args[:2] == ("git", "diff"):
+                    return completed("diff --git a/a b/a\n")
+                if args[:2] == ("cplus", "bug"):
+                    Path(args[args.index("--export") + 1]).write_text("{}", encoding="utf-8")
+                    return completed("REPRODUCED")
+                if args[:2] == ("cplus", "verify"):
+                    return completed(json.dumps({
+                        "schema_version": 1, "verdict": current_verdict,
+                        "summary": "reference test conflicts with agent test edits",
+                        "infrastructure_error": None,
+                        "gates": [{"name": "apply:reference", "status": "ERROR",
+                                   "evidence": {"secret": "PRIVATE_CPLUS_LOG"}}],
+                    }))
+                return completed("")
+
+            with (patch.object(verify_cases, "TEMP", temp),
+                  patch.object(verify_cases, "quiet", side_effect=fake_quiet)):
+                verdict, gates, _elapsed, reason = verify_cases.run_case("cpp-peglib-121")
+            self.assertEqual(verdict, "NOT_VERIFIABLE")
+            self.assertEqual(gates, {})
+            self.assertEqual(reason, "reference test conflicts with agent test edits")
+            self.assertNotIn("PRIVATE_CPLUS_LOG", reason)
+            current_verdict = "VERIFIED"
+            with (patch.object(verify_cases, "TEMP", temp),
+                  patch.object(verify_cases, "quiet", side_effect=fake_quiet)):
+                with self.assertRaises(verify_cases.CaseExecutionError) as caught:
+                    verify_cases.run_case("cpp-peglib-121")
+            self.assertEqual(caught.exception.public_reason, "parse: unexpected verifier check")
+
+    def test_multi_test_reference_is_focused_for_bug_and_verified_by_name(self) -> None:
+        source = Path(__file__).resolve().parents[1] / "cases" / "fmt-4490"
+        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[2] / ".tmp") as directory:
+            root = Path(directory)
+            case_dir = root / "cases" / "fmt-4490"
+            case_dir.mkdir(parents=True)
+            (case_dir / "case.yaml").write_bytes((source / "case.yaml").read_bytes())
+            (case_dir / "agent-fix.patch").write_bytes((source / "agent-fix.patch").read_bytes())
+            calls: list[tuple[str, ...]] = []
+
+            def fake_quiet(*args: str, cwd: Path | None = None):
+                calls.append(args)
+                if args[:2] == ("git", "clone"):
+                    Path(args[-1]).mkdir(parents=True, exist_ok=True)
+                if args[:2] == ("git", "diff"):
+                    return completed("diff --git a/test/a.cc b/test/a.cc\n")
+                if args[:2] == ("cplus", "bug"):
+                    Path(args[args.index("--export") + 1]).write_text("{}", encoding="utf-8")
+                    return completed("REPRODUCED")
+                if args[:2] == ("cplus", "verify"):
+                    return completed(json.dumps({"schema_version": 1, "verdict": "REJECTED",
+                                                 "infrastructure_error": None,
+                                                 "gates": [], "summary": "still fails"}))
+                return completed("")
+
+            with (patch.object(verify_cases, "ROOT", root),
+                  patch.object(verify_cases, "TEMP", root / "tmp"),
+                  patch.object(verify_cases, "quiet", side_effect=fake_quiet)):
+                verdict, _gates, _elapsed, _reason = verify_cases.run_case("fmt-4490")
+            self.assertEqual(verdict, "REJECTED")
+            bug = next(call for call in calls if call[:2] == ("cplus", "bug"))
+            selected = "memory_buffer_test.move_ctor_inline_buffer_non_propagating"
+            self.assertIn(f"GTEST_FILTER={selected}", bug[bug.index("--command") + 1])
+            verify = next(call for call in calls if call[:2] == ("cplus", "verify"))
+            self.assertEqual(verify[verify.index("--reference-test-name") + 1], selected)
 
     def test_rejected_report_has_only_public_one_line_gate_reason(self) -> None:
         gate = {
@@ -131,6 +262,7 @@ class VerifyCasesSmokeTest(unittest.TestCase):
 
             public_log = io.StringIO()
             with (patch.object(verify_cases, "ROOT", root),
+                  patch.object(verify_cases, "RESULTS_DIR", root / "results"),
                   patch.object(verify_cases, "TEMP", root / "tmp"),
                   patch.object(verify_cases, "quiet", side_effect=fake_quiet),
                   patch.dict("os.environ", {"SELECT_CASE": "cpp-peglib-121"}),
@@ -206,6 +338,7 @@ class VerifyCasesSmokeTest(unittest.TestCase):
             (case_dir / "agent-fix.patch").write_bytes(b"")
             public_log = io.StringIO()
             with (patch.object(verify_cases, "ROOT", root),
+                  patch.object(verify_cases, "RESULTS_DIR", root / "results"),
                   patch.object(verify_cases, "TEMP", root / "tmp"),
                   patch.object(verify_cases, "quiet", side_effect=AssertionError("cplus must not run")),
                   patch.dict("os.environ", {"SELECT_CASE": "cpp-peglib-121"}),
@@ -218,9 +351,9 @@ class VerifyCasesSmokeTest(unittest.TestCase):
             self.assertIn("Agent: not run · Version: not recorded", result)
 
 
-def completed(stdout: str):
+def completed(stdout: str, returncode: int = 0):
     from subprocess import CompletedProcess
-    return CompletedProcess(args=(), returncode=0, stdout=stdout, stderr="")
+    return CompletedProcess(args=(), returncode=returncode, stdout=stdout, stderr="")
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@
   "base": "14305f9f53cde207568f21675a1b9294a3ab28b4",
   "upstream_fix": "0061f393de54cf0326621c079dc2988336d1ebb3",
   "bug_test": "Start rule with ignore operator test",
+  "reference_selection": "first upstream diff test with a 3/3 base failure",
   "issue_url": "https://github.com/yhirose/cpp-peglib/issues/121",
   "fix_url": "https://github.com/yhirose/cpp-peglib/commit/0061f393de54cf0326621c079dc2988336d1ebb3",
   "license": "MIT",

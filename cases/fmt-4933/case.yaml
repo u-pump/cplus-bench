@@ -4,6 +4,7 @@
   "base": "8dc5d3f69f15417d13c60a4a21f7298ed24db41c",
   "upstream_fix": "854fc9567a2cbea01b0f413565705ccbaf5bde5c",
   "bug_test": "args_test.named_arg_count",
+  "reference_selection": "first upstream diff test with a 3/3 base failure",
   "issue_url": "https://github.com/fmtlib/fmt/pull/4933",
   "fix_url": "https://github.com/fmtlib/fmt/commit/854fc9567a2cbea01b0f413565705ccbaf5bde5c",
   "license": "MIT",
