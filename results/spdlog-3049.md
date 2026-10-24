@@ -1,14 +1,14 @@
 # spdlog-3049
 
-Verdict: **PENDING**
+Verdict: **NOT_VERIFIABLE**
 
-Status: no agent fix yet
+Reason: reference test conflicts with agent test edits
 
-Elapsed: pending
+Elapsed: 1.0 s
 
-Verifier: cplus e9c5ad9c3c63ac1b5a0a1366a122d17f0f226ab6 · 2026-10-23 21:59:00 UTC (configured; not run)
+Verifier: cplus fb95bec48fa1d9872b96fd429f50984529e76a86 · 2026-10-24 08:59:26 UTC
 
-Agent: not run · Version: not recorded
+Agent: Codex CLI · Version: 0.164.0
 
 | Check | Status |
 | --- | --- |

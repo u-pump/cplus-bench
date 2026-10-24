@@ -4,9 +4,9 @@ Verdict: **REJECTED**
 
 Reason: judged by upstream reference test 'Start rule with ignore operator test'; the patch did not eliminate the expected reproducer failure
 
-Elapsed: 50.7 s
+Elapsed: 46.8 s
 
-Verifier: cplus e9c5ad9c3c63ac1b5a0a1366a122d17f0f226ab6 · 2026-10-20 17:12:25 UTC
+Verifier: cplus fb95bec48fa1d9872b96fd429f50984529e76a86 · 2026-10-24 08:59:26 UTC
 
 Agent: Codex CLI · Version: 0.163.0
 

@@ -1,22 +1,22 @@
 # zlibng-2465
 
-Verdict: **PENDING**
+Verdict: **VERIFIED**
 
-Status: no agent fix yet
+Reason: judged by upstream reference test 'inflate.mark_inside_match'; fix proven
 
-Elapsed: pending
+Elapsed: 45.9 s
 
-Verifier: cplus e9c5ad9c3c63ac1b5a0a1366a122d17f0f226ab6 · 2026-10-23 21:59:00 UTC (configured; not run)
+Verifier: cplus fb95bec48fa1d9872b96fd429f50984529e76a86 · 2026-10-24 08:59:26 UTC
 
-Agent: not run · Version: not recorded
+Agent: Codex CLI · Version: 0.164.0
 
 | Check | Status |
 | --- | --- |
-| anti_cheat | SKIPPED |
-| build:baseline | SKIPPED |
-| repro:baseline | SKIPPED |
-| build:patched | SKIPPED |
-| repro:patched | SKIPPED |
-| repeat | SKIPPED |
-| revert | SKIPPED |
-| regression | SKIPPED |
+| anti_cheat | PASS |
+| build:baseline | PASS |
+| repro:baseline | PASS |
+| build:patched | PASS |
+| repro:patched | PASS |
+| repeat | PASS |
+| revert | PASS |
+| regression | PASS |
