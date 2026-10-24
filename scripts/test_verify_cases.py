@@ -14,6 +14,20 @@ import verify_cases
 
 
 class VerifyCasesSmokeTest(unittest.TestCase):
+    def test_reference_selection_is_recorded_for_every_case(self) -> None:
+        case_dirs = sorted((verify_cases.ROOT / "cases").iterdir())
+        self.assertEqual(len(case_dirs), 10)
+        for case_dir in case_dirs:
+            with self.subTest(case=case_dir.name):
+                case = json.loads((case_dir / "case.yaml").read_text(encoding="utf-8"))
+                self.assertEqual(
+                    case["reference_selection"],
+                    "first upstream diff test with a 3/3 base failure",
+                )
+                self.assertTrue(case["bug_test"])
+                if "reference_test_name" in case:
+                    self.assertEqual(case["reference_test_name"], case["bug_test"])
+
     def test_run_case_uses_public_verifier_summary(self) -> None:
         with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[2] / ".tmp") as directory:
             temp = Path(directory)

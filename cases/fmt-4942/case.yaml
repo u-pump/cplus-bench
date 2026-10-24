@@ -4,6 +4,7 @@
   "base": "fd0a9b6620c8f44fac2122adb1cc29664aa96325",
   "upstream_fix": "cfb57bfa3aa90573abfc39a160bb0248e14fd64f",
   "bug_test": "printf_test.zero_int_with_zero_precision",
+  "reference_selection": "first upstream diff test with a 3/3 base failure",
   "issue_url": "https://github.com/fmtlib/fmt/pull/4942",
   "fix_url": "https://github.com/fmtlib/fmt/commit/cfb57bfa3aa90573abfc39a160bb0248e14fd64f",
   "license": "MIT",

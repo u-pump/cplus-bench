@@ -4,6 +4,8 @@
   "base": "4afd0e498e9e1dd68775cc52087df774a19c761f",
   "upstream_fix": "c4927e6086c2aa5bae0f5c2bce791c369c055197",
   "bug_test": "format_test.high_precision_trailing_zeros",
+  "reference_selection": "first upstream diff test with a 3/3 base failure",
+  "reference_selection_note": "Retrospective selection after agent run: first and second upstream tests did not fail 3/3 on base; third did. Prospective freeze requirement was not met.",
   "reference_test_name": "format_test.high_precision_trailing_zeros",
   "issue_url": "https://github.com/fmtlib/fmt/pull/4960",
   "fix_url": "https://github.com/fmtlib/fmt/commit/c4927e6086c2aa5bae0f5c2bce791c369c055197",

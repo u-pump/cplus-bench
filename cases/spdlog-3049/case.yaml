@@ -4,6 +4,7 @@
   "base": "6766f873d680e696c29541dbd144f4ef0785f547",
   "upstream_fix": "6725584e27ca93f50527165696d7cf34e3978373",
   "bug_test": "multithread flush",
+  "reference_selection": "first upstream diff test with a 3/3 base failure",
   "issue_url": "https://github.com/gabime/spdlog/pull/3049",
   "fix_url": "https://github.com/gabime/spdlog/commit/6725584e27ca93f50527165696d7cf34e3978373",
   "license": "MIT",

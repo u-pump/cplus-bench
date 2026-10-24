@@ -4,6 +4,7 @@
   "base": "8f3a965186d49dba299a2302bee1bd093401b969",
   "upstream_fix": "0d145936ece2ccebb98a3a39ae04a5c81d24bc99",
   "bug_test": "memory_buffer_test.move_ctor_inline_buffer_non_propagating",
+  "reference_selection": "first upstream diff test with a 3/3 base failure",
   "reference_test_name": "memory_buffer_test.move_ctor_inline_buffer_non_propagating",
   "issue_url": "https://github.com/fmtlib/fmt/pull/4490",
   "fix_url": "https://github.com/fmtlib/fmt/commit/0d145936ece2ccebb98a3a39ae04a5c81d24bc99",
