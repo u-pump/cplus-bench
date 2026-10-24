@@ -78,6 +78,42 @@ class VerifyCasesSmokeTest(unittest.TestCase):
             self.assertNotIn("PRIVATE_CPLUS_LOG", report)
             self.assertNotIn("D:\\runner", report)
 
+    def test_rejected_case_note_flows_from_case_metadata_to_result(self) -> None:
+        note = (
+            "agent implemented the wait but broke the upstream discard_new behaviour "
+            "(differs from expected upstream behaviour)"
+        )
+        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[2] / ".tmp") as directory:
+            root = Path(directory)
+            case_dir = root / "cases" / "spdlog-3049"
+            case_dir.mkdir(parents=True)
+            (case_dir / "case.yaml").write_text(
+                json.dumps({"result_note": note}), encoding="utf-8"
+            )
+            with (patch.object(verify_cases, "ROOT", root),
+                  patch.object(verify_cases, "RESULTS_DIR", root / "results"),
+                  patch.object(verify_cases, "selected_cases", return_value=["spdlog-3049"]),
+                  patch.object(verify_cases, "agent_identity", return_value=("Codex CLI", "0.164.0")),
+                  patch.object(verify_cases, "run_case", return_value=("REJECTED", {"anti_cheat": "PASS"}, 1.0, "reference still fails")),
+                  contextlib.redirect_stdout(io.StringIO())):
+                self.assertEqual(verify_cases.main(), 0)
+            report = (root / "results" / "spdlog-3049.md").read_text(encoding="utf-8")
+            self.assertIn(f"Note: {note}", report)
+            self.assertIn("Reason: reference still fails", report)
+
+            (case_dir / "case.yaml").write_text(
+                json.dumps({"result_note": "private log at D:\\runner\\secret"}), encoding="utf-8"
+            )
+            with patch.object(verify_cases, "ROOT", root):
+                with self.assertRaises(verify_cases.CaseExecutionError):
+                    verify_cases.case_result_note("spdlog-3049")
+
+        self.assertNotIn(
+            "Note:",
+            verify_cases.render("spdlog-3049", "VERIFIED", {}, 1.0, "Codex CLI", "0.164.0",
+                                "2026-10-24 12:00:00 UTC", "fix proven", note),
+        )
+
     def test_infrastructure_error_reports_generic_reason_without_exception_details(self) -> None:
         with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[2] / ".tmp") as directory:
             root = Path(directory)

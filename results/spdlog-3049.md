@@ -1,22 +1,24 @@
 # spdlog-3049
 
-Verdict: **NOT_VERIFIABLE**
+Verdict: **REJECTED**
 
-Reason: reference test conflicts with agent test edits
+Reason: judged by upstream reference test 'multithread flush'; the patch did not eliminate the expected reproducer failure
 
-Elapsed: 1.0 s
+Note: agent implemented the wait but broke the upstream discard_new behaviour (differs from expected upstream behaviour)
 
-Verifier: cplus fb95bec48fa1d9872b96fd429f50984529e76a86 · 2026-10-24 08:59:26 UTC
+Elapsed: 94.3 s
+
+Verifier: cplus 81c0fda242fef1daf55d3164e06127d372c81caa · 2026-10-24 13:33:39 UTC
 
 Agent: Codex CLI · Version: 0.164.0
 
 | Check | Status |
 | --- | --- |
-| anti_cheat | SKIPPED |
-| build:baseline | SKIPPED |
-| repro:baseline | SKIPPED |
-| build:patched | SKIPPED |
-| repro:patched | SKIPPED |
+| anti_cheat | PASS |
+| build:baseline | PASS |
+| repro:baseline | PASS |
+| build:patched | PASS |
+| repro:patched | FAIL |
 | repeat | SKIPPED |
 | revert | SKIPPED |
 | regression | SKIPPED |
