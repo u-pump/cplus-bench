@@ -26,7 +26,7 @@ GATES = (
 )
 STATUSES = {"PASS", "FAIL", "ERROR", "REVIEW", "SKIPPED"}
 VERDICTS = {"VERIFIED", "REJECTED", "REVIEW", "NOT_VERIFIABLE", "ERROR"}
-VERIFIER_REVISION = "fb95bec48fa1d9872b96fd429f50984529e76a86"
+VERIFIER_REVISION = "81c0fda242fef1daf55d3164e06127d372c81caa"
 
 
 class CaseExecutionError(RuntimeError):
@@ -88,6 +88,17 @@ def agent_identity(case_id: str) -> tuple[str, str]:
     return name, version
 
 
+def case_result_note(case_id: str) -> str | None:
+    """Read a curated, single-line note from public case metadata."""
+    case = json.loads((ROOT / "cases" / case_id / "case.yaml").read_text(encoding="utf-8"))
+    note = case.get("result_note")
+    if note is None:
+        return None
+    if not isinstance(note, str) or not note or summary_reason(note, "") != note:
+        raise CaseExecutionError("parse", "invalid case result note")
+    return note
+
+
 def gate_reason(gate: dict[str, object]) -> str:
     name = str(gate["name"])
     evidence = gate.get("evidence")
@@ -116,7 +127,7 @@ def summary_reason(raw: object, fallback: str) -> str:
 
 def render(case_id: str, verdict: str, gates: dict[str, str], seconds: float | None,
            agent_name: str, agent_version: str, checked_at_utc: str,
-           reason: str | None = None) -> str:
+           reason: str | None = None, result_note: str | None = None) -> str:
     duration = "pending" if seconds is None else f"{seconds:.1f} s"
     rows = "\n".join(f"| {gate} | {gates.get(gate, 'SKIPPED')} |" for gate in GATES)
     note = "\n\nStatus: no agent fix yet" if verdict == "PENDING" else ""
@@ -124,7 +135,8 @@ def render(case_id: str, verdict: str, gates: dict[str, str], seconds: float | N
     if verdict == "INFRASTRUCTURE_ERROR":
         verifier_note = " (attempted; no code verdict)"
     reason_line = f"\n\nReason: {reason}" if reason is not None else ""
-    return (f"# {case_id}\n\nVerdict: **{verdict}**{note}{reason_line}\n\nElapsed: {duration}\n\n"
+    note_line = f"\n\nNote: {result_note}" if verdict == "REJECTED" and result_note else ""
+    return (f"# {case_id}\n\nVerdict: **{verdict}**{note}{reason_line}{note_line}\n\nElapsed: {duration}\n\n"
             f"Verifier: cplus {VERIFIER_REVISION} · {checked_at_utc}{verifier_note}\n\n"
             f"Agent: {agent_name} · Version: {agent_version}\n\n"
             f"| Check | Status |\n| --- | --- |\n{rows}\n")
@@ -235,9 +247,11 @@ def main() -> int:
     checked_at_utc = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
     for case_id in selected_cases():
         agent_name, agent_version = "not recorded", "not recorded"
+        result_note = None
         try:
             agent_name, agent_version = agent_identity(case_id)
             verdict, gates, seconds, reason = run_case(case_id)
+            result_note = case_result_note(case_id)
         except Exception as exc:
             public_reason = (exc.public_reason if isinstance(exc, CaseExecutionError)
                              else "parse: unexpected case processing error")
@@ -249,7 +263,7 @@ def main() -> int:
         result.parent.mkdir(parents=True, exist_ok=True)
         result.write_text(
             render(case_id, verdict, gates, seconds, agent_name, agent_version, checked_at_utc,
-                   reason),
+                   reason, result_note),
             encoding="utf-8",
         )
         label = f"{verdict} - no agent fix yet" if verdict == "PENDING" else verdict
