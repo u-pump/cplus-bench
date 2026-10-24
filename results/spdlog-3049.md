@@ -6,9 +6,9 @@ Reason: judged by upstream reference test 'multithread flush'; the patch did not
 
 Note: agent implemented the wait but broke the upstream discard_new behaviour (differs from expected upstream behaviour)
 
-Elapsed: 106.2 s
+Elapsed: 87.1 s
 
-Verifier: cplus 81c0fda242fef1daf55d3164e06127d372c81caa · 2026-10-24 14:08:38 UTC
+Verifier: cplus 81c0fda242fef1daf55d3164e06127d372c81caa · 2026-10-24 14:16:42 UTC
 
 Agent: Codex CLI · Version: 0.164.0
 
