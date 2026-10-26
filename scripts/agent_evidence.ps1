@@ -74,18 +74,35 @@ function Get-ClaudeNetworkAttempts {
     return [ordered]@{ count = $labels.Count; commands = @($labels | Select-Object -Unique) }
 }
 
+function Get-AgentCheckoutRoot {
+    param([Parameter(Mandatory)][string]$Agent, [Parameter(Mandatory)][string]$BenchmarkRoot)
+    if ($Agent -eq 'claude-code') { return "/var/tmp/cplus-bench-agent/$Agent" }
+    return (Join-Path (Split-Path -Parent $BenchmarkRoot) ".tmp/bench-agent/$Agent")
+}
+
 function New-ClaudeSettings {
-    param([string]$BenchmarkRoot = '')
-    $denied = @('~/.ssh', '~/.aws', '~/.config/gh', '~/.claude')
-    if ($BenchmarkRoot) { $denied += $BenchmarkRoot }
+    # Read rules also cover Grep/Glob; Edit rules also cover Write.
+    # Write(path) and Glob(path) rules are accepted by Claude but never match.
+    $deniedTools = @(
+        'Read(~/)', 'Read(~/**)', 'Read(//mnt)', 'Read(//mnt/**)',
+        'Edit(~/)', 'Edit(~/**)', 'Edit(//mnt)', 'Edit(//mnt/**)'
+    )
     $settings = [ordered]@{
+        permissions = [ordered]@{
+            blockReadsOutsideWorkingDirectories = $true
+            deny = $deniedTools
+        }
         sandbox = [ordered]@{
             enabled = $true
             failIfUnavailable = $true
             autoAllowBashIfSandboxed = $true
             allowUnsandboxedCommands = $false
             excludedCommands = @()
-            filesystem = [ordered]@{ denyRead = $denied }
+            filesystem = [ordered]@{
+                disabled = $false
+                denyRead = @('~/', '/mnt')
+                allowRead = @('.')
+            }
             network = [ordered]@{
                 allowedDomains = @()
                 strictAllowlist = $true
@@ -93,6 +110,44 @@ function New-ClaudeSettings {
         }
     }
     return ($settings | ConvertTo-Json -Depth 8 -Compress)
+}
+
+function Assert-ClaudeSettingsPolicy {
+    param([Parameter(Mandatory)][string]$SettingsJson)
+    $settings = $SettingsJson | ConvertFrom-Json
+    $fs = $settings.sandbox.filesystem
+    $neededRules = @(
+        'Read(~/)', 'Read(~/**)', 'Read(//mnt)', 'Read(//mnt/**)',
+        'Edit(~/)', 'Edit(~/**)', 'Edit(//mnt)', 'Edit(//mnt/**)'
+    )
+    if (-not $settings.sandbox.enabled -or -not $settings.sandbox.failIfUnavailable -or
+        $settings.sandbox.allowUnsandboxedCommands -or -not $settings.permissions.blockReadsOutsideWorkingDirectories -or
+        $fs.disabled -or
+        @($fs.denyRead).Count -ne 2 -or $fs.denyRead -notcontains '~/' -or $fs.denyRead -notcontains '/mnt' -or
+        @($fs.allowRead).Count -ne 1 -or $fs.allowRead[0] -ne '.' -or
+        @($settings.sandbox.network.allowedDomains).Count -ne 0 -or -not $settings.sandbox.network.strictAllowlist) {
+        throw 'Настройки песочницы Claude не запрещают чтение домашней папки и /mnt.'
+    }
+    foreach ($rule in $neededRules) {
+        if ($settings.permissions.deny -notcontains $rule) {
+            throw "Нет правила permissions.deny: $rule"
+        }
+    }
+}
+
+function Assert-ClaudeSettingsIsolation {
+    param([Parameter(Mandatory)][string]$SettingsJson, [Parameter(Mandatory)][string]$Checkout)
+    Assert-ClaudeSettingsPolicy -SettingsJson $SettingsJson
+    if (-not $IsLinux) { throw 'Проверка изоляции Claude требует WSL2 Ubuntu.' }
+    $resolved = (& realpath -- $Checkout).TrimEnd('/')
+    if ($LASTEXITCODE -ne 0 -or -not $resolved.StartsWith('/var/tmp/cplus-bench-agent/')) {
+        throw 'Checkout Claude должен находиться в /var/tmp/cplus-bench-agent/.'
+    }
+    $homePath = (& realpath -- $env:HOME).TrimEnd('/')
+    if ($resolved -eq $homePath -or $resolved.StartsWith("$homePath/") -or
+        $resolved -eq '/mnt' -or $resolved.StartsWith('/mnt/')) {
+        throw 'Checkout Claude оказался внутри домашней папки или /mnt.'
+    }
 }
 
 function Assert-ClaudeSandboxHost {

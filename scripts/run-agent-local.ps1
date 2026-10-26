@@ -10,7 +10,7 @@ $caseDir = Join-Path $root "cases/$CaseId"
 $agentDir = Join-Path $caseDir "agents/$Agent"
 $patchPath = Join-Path $agentDir 'agent-fix.patch'
 $metaPath = Join-Path $agentDir 'agent.yaml'
-$checkoutRoot = Join-Path (Split-Path -Parent $root) ".tmp/bench-agent/$Agent"
+$checkoutRoot = Get-AgentCheckoutRoot -Agent $Agent -BenchmarkRoot $root
 $checkout = Join-Path $checkoutRoot $CaseId
 $logDir = Join-Path $root '.tmp/agent-runs/logs'
 $runId = "$CaseId-$Agent-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
@@ -50,7 +50,7 @@ if ($Agent -eq 'claude-code') {
         '--permission-prompts', '--settings', '--permission-mode')) {
         if (-not $helpText.Contains($flag)) { throw "Claude Code не поддерживает $flag; обновите CLI" }
     }
-    $claudeSettings = New-ClaudeSettings -BenchmarkRoot $root
+    $claudeSettings = New-ClaudeSettings
 }
 $oldGhToken = $env:GH_TOKEN
 $oldGithubToken = $env:GITHUB_TOKEN
@@ -72,6 +72,9 @@ try {
     if (-not (Test-Path -LiteralPath $taskPath -PathType Leaf)) { throw 'TASK.md missing' }
     $task = (Get-Content -LiteralPath $taskPath -Raw -Encoding UTF8).Trim()
     if ($task -ne 'Fix the bug described in ISSUE.md. Keep the change minimal. Run the existing tests.') { throw 'TASK.md differs from the benchmark protocol' }
+    if ($Agent -eq 'claude-code') {
+        Assert-ClaudeSettingsIsolation -SettingsJson $claudeSettings -Checkout $checkout
+    }
     $env:GH_TOKEN = $null
     $env:GITHUB_TOKEN = $null
     Write-Host "$Agent $version; log: $logPath"
@@ -95,7 +98,7 @@ try {
         $model = Get-ClaudeEvidence -Log $log
         $networkAttempts = Get-ClaudeNetworkAttempts -Log $log
         $osName = (Get-Content -LiteralPath '/etc/os-release' | Where-Object { $_ -like 'PRETTY_NAME=*' } | Select-Object -First 1) -replace '^PRETTY_NAME="?(.*?)"?$', '$1'
-        $environment = "WSL2 $osName; Claude Code sandbox enabled/failIfUnavailable; auto-allow Bash inside sandbox; strict empty network allowlist; unsandboxed commands disabled; seccomp filter required; --restricted --safe-mode; benchmark and credential paths denied; other host files may be readable"
+        $environment = "WSL2 $osName; Claude Code sandbox enabled/failIfUnavailable; auto-allow Bash inside sandbox; strict empty network allowlist; unsandboxed commands disabled; seccomp filter required; --restricted --safe-mode; Bash denyRead ~/ and /mnt, allowRead checkout; file tools deny home and /mnt, blockReadsOutsideWorkingDirectories; system paths and other /var/tmp paths may remain readable"
         $invocation = 'claude -p --restricted --safe-mode --strict-mcp-config --permission-mode acceptEdits --permission-prompts none --settings <strict sandbox JSON> --tools Bash,Read,Edit,Write,Glob,Grep --disallowedTools WebSearch,WebFetch'
         $name = 'Claude Code'
     } else {

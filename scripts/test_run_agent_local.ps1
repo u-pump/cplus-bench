@@ -24,13 +24,33 @@ foreach ($log in @(
     catch { if ($_.Exception.Message -notmatch 'attempt not recorded') { throw } }
 }
 
-$settings = New-ClaudeSettings -BenchmarkRoot $root | ConvertFrom-Json
+$settingsJson = New-ClaudeSettings
+$settings = $settingsJson | ConvertFrom-Json
 if (-not $settings.sandbox.enabled -or -not $settings.sandbox.failIfUnavailable -or
     -not $settings.sandbox.autoAllowBashIfSandboxed -or $settings.sandbox.allowUnsandboxedCommands -or
     -not $settings.sandbox.network.strictAllowlist -or
     @($settings.sandbox.network.allowedDomains).Count -ne 0 -or
     @($settings.sandbox.excludedCommands).Count -ne 0 -or
-    $settings.sandbox.filesystem.denyRead -notcontains $root) { throw 'Claude sandbox settings are not fail-closed' }
+    $settings.sandbox.filesystem.disabled -or
+    $settings.sandbox.filesystem.denyRead -notcontains '~/' -or
+    $settings.sandbox.filesystem.denyRead -notcontains '/mnt' -or
+    $settings.sandbox.filesystem.allowRead -notcontains '.' -or
+    -not $settings.permissions.blockReadsOutsideWorkingDirectories) {
+    throw 'Claude sandbox settings are not fail-closed'
+}
+foreach ($rule in @('Read(~/)', 'Read(~/**)', 'Read(//mnt)', 'Read(//mnt/**)',
+    'Edit(~/)', 'Edit(~/**)', 'Edit(//mnt)', 'Edit(//mnt/**)')) {
+    if ($settings.permissions.deny -notcontains $rule) { throw "Missing file-tool deny: $rule" }
+}
+Assert-ClaudeSettingsPolicy -SettingsJson $settingsJson
+$badSettings = $settingsJson.Replace('"/mnt"', '"/missing"')
+try { Assert-ClaudeSettingsPolicy -SettingsJson $badSettings; throw 'Weak sandbox accepted' }
+catch { if ($_.Exception.Message -notmatch 'не запрещают') { throw } }
+$claudeCheckoutRoot = Get-AgentCheckoutRoot -Agent 'claude-code' -BenchmarkRoot $root
+if ($claudeCheckoutRoot -ne '/var/tmp/cplus-bench-agent/claude-code' -or
+    $claudeCheckoutRoot.StartsWith('/mnt/') -or $claudeCheckoutRoot.StartsWith('~/')) {
+    throw 'Claude checkout is not isolated from home and /mnt'
+}
 
 $networkLog = "$init`n" +
     '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","id":"net-1","input":{"command":"curl https://example.com/private/path"}},{"type":"tool_use","name":"WebSearch","id":"net-2","input":{}}]}}' + "`n" +
