@@ -18,17 +18,5 @@
     "elapsed_s": 81.3
   },
   "agent_input_repo": "https://github.com/u-pump/bench-in-fmt-4490",
-  "input_sha256": "c52ccfab65d8546b168abaa24d29e17427ef4f1e1e6430e65512507a28815960",
-  "agent": {
-    "name": "Codex CLI",
-    "version": "0.164.0",
-    "model": "gpt-6-sol",
-    "reasoning": "medium",
-    "date_utc": "2026-10-23",
-    "environment": "local Windows, MSVC 2019 Build Tools",
-    "invocation": "codex exec --sandbox workspace-write",
-    "session_id": "01a16a49-0fb2-78e3-8e99-229ad2990a7e",
-    "patch_sha256": "226c71b74e16e3ca2cf4d747a095d4343e1d18d5786036a61b95632c350e8cf8"
-  },
-  "attempt_note": "Initial scripted run was blocked by policy and produced an empty patch; not counted."
+  "input_sha256": "c52ccfab65d8546b168abaa24d29e17427ef4f1e1e6430e65512507a28815960"
 }

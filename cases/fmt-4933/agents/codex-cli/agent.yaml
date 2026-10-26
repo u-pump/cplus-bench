@@ -1,0 +1,12 @@
+{
+  "name": "Codex CLI",
+  "version": "0.164.0",
+  "model": "gpt-6-sol",
+  "reasoning": "medium",
+  "date_utc": "2026-10-23",
+  "environment": "local Windows, MSVC 2019 Build Tools",
+  "invocation": "codex exec --sandbox workspace-write",
+  "session_id": "01a16a86-556b-7092-9219-f720259456f5",
+  "patch_sha256": "3b05c03c4ffd7fc990e4cc4c667ac61a0eea725cad9a2a1f58215ac8e7cc06c7",
+  "attempt_note": "First attempt had a network failure before any command; second attempt counted."
+}

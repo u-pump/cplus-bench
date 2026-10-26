@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -78,20 +79,36 @@ def extract_json(output: str) -> dict[str, object]:
     raise ValueError("No verifier result")
 
 
-def agent_identity(case_id: str) -> tuple[str, str]:
-    case = json.loads((ROOT / "cases" / case_id / "case.yaml").read_text(encoding="utf-8"))
-    agent = case.get("agent") or {}
+def selected_agents(case_id: str) -> list[str]:
+    root = ROOT / "cases" / case_id / "agents"
+    if not root.is_dir():
+        raise CaseExecutionError("parse", "agent directory unavailable")
+    agents = sorted(path.name for path in root.iterdir() if path.is_dir())
+    if not agents or any(not re.fullmatch(r"[a-z0-9][a-z0-9-]*", name) for name in agents):
+        raise CaseExecutionError("parse", "invalid agent directory")
+    return agents
+
+
+def agent_identity(case_id: str, agent_id: str) -> tuple[str, str]:
+    agent = json.loads(
+        (ROOT / "cases" / case_id / "agents" / agent_id / "agent.yaml").read_text(encoding="utf-8")
+    )
     if not isinstance(agent, dict):
         raise ValueError("Invalid agent metadata")
+    required = {"name", "version", "model", "invocation", "date_utc", "environment", "patch_sha256", "attempt_note"}
+    if not required <= agent.keys():
+        raise ValueError("Missing agent metadata")
     name = str(agent.get("name") or "not run").replace("\n", " ").replace("\r", " ")
     version = str(agent.get("version") or "not recorded").replace("\n", " ").replace("\r", " ")
     return name, version
 
 
-def case_result_note(case_id: str) -> str | None:
-    """Read a curated, single-line note from public case metadata."""
-    case = json.loads((ROOT / "cases" / case_id / "case.yaml").read_text(encoding="utf-8"))
-    note = case.get("result_note")
+def agent_result_note(case_id: str, agent_id: str) -> str | None:
+    """Read a curated, single-line note from public agent metadata."""
+    agent = json.loads(
+        (ROOT / "cases" / case_id / "agents" / agent_id / "agent.yaml").read_text(encoding="utf-8")
+    )
+    note = agent.get("result_note")
     if note is None:
         return None
     if not isinstance(note, str) or not note or summary_reason(note, "") != note:
@@ -142,19 +159,28 @@ def render(case_id: str, verdict: str, gates: dict[str, str], seconds: float | N
             f"| Check | Status |\n| --- | --- |\n{rows}\n")
 
 
-def run_case(case_id: str) -> tuple[str, dict[str, str], float | None, str | None]:
+def run_case(case_id: str, agent_id: str) -> tuple[str, dict[str, str], float | None, str | None]:
     case_dir = ROOT / "cases" / case_id
     if not case_dir.is_dir():
         raise CaseExecutionError("parse", "case metadata unavailable")
     try:
         case = json.loads((case_dir / "case.yaml").read_text(encoding="utf-8"))
-        patch = case_dir / "agent-fix.patch"
+        patch = case_dir / "agents" / agent_id / "agent-fix.patch"
         patch_bytes = patch.read_bytes()
+        agent = json.loads((patch.parent / "agent.yaml").read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         raise CaseExecutionError("parse", "case metadata unavailable") from exc
     if not patch_bytes.strip():
+        if patch_bytes or agent.get("patch_sha256") is not None:
+            raise CaseExecutionError("parse", "invalid pending patch metadata")
         return "PENDING", {}, None, None
-    scratch = TEMP / "case-checkouts" / case_id
+    if not isinstance(agent, dict) or any(not agent.get(key) for key in (
+        "name", "version", "model", "invocation", "date_utc", "environment", "attempt_note"
+    )):
+        raise CaseExecutionError("parse", "incomplete agent metadata")
+    if hashlib.sha256(patch_bytes).hexdigest() != agent.get("patch_sha256"):
+        raise CaseExecutionError("parse", "patch hash mismatch")
+    scratch = TEMP / "case-checkouts" / case_id / agent_id
     scratch.parent.mkdir(parents=True, exist_ok=True)
     clone = quiet_stage("clone", "source repository unavailable", "git", "clone", "--quiet",
                         "--no-checkout", case["repo"], str(scratch))
@@ -168,14 +194,14 @@ def run_case(case_id: str) -> tuple[str, dict[str, str], float | None, str | Non
                             base, fix, cwd=scratch)
     if fix_patch.returncode or not fix_patch.stdout:
         raise CaseExecutionError("upstream fix", "reference revision unavailable")
-    upstream_patch = TEMP / f"{case_id}-upstream.patch"
+    upstream_patch = TEMP / f"{case_id}-{agent_id}-upstream.patch"
     upstream_patch.write_text(fix_patch.stdout, encoding="utf-8")
     config = ("version: 1\nbuild_system: cmake\n"
               f"build: {case['build']}\ntest: {case['test']}\n"
               "build_environment: default image\nprotected_paths:\n"
               "- test/**\n- tests/**\n- .github/**\n- '**/*.supp'\n")
     (scratch / "cplus.yaml").write_text(config, encoding="utf-8")
-    spec = TEMP / f"{case_id}-bug-spec.json"
+    spec = TEMP / f"{case_id}-{agent_id}-bug-spec.json"
     reference_name = case.get("reference_test_name")
     if reference_name is not None and (
         not isinstance(reference_name, str)
@@ -246,34 +272,35 @@ def main() -> int:
     failed = False
     checked_at_utc = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
     for case_id in selected_cases():
-        agent_name, agent_version = "not recorded", "not recorded"
-        result_note = None
-        try:
-            agent_name, agent_version = agent_identity(case_id)
-            verdict, gates, seconds, reason = run_case(case_id)
-            result_note = case_result_note(case_id)
-        except Exception as exc:
-            public_reason = (exc.public_reason if isinstance(exc, CaseExecutionError)
-                             else "parse: unexpected case processing error")
-            verdict, gates, seconds, reason = (
-                "INFRASTRUCTURE_ERROR", {}, None, public_reason
+        for agent_id in selected_agents(case_id):
+            agent_name, agent_version = "not recorded", "not recorded"
+            result_note = None
+            try:
+                agent_name, agent_version = agent_identity(case_id, agent_id)
+                verdict, gates, seconds, reason = run_case(case_id, agent_id)
+                result_note = agent_result_note(case_id, agent_id)
+            except Exception as exc:
+                public_reason = (exc.public_reason if isinstance(exc, CaseExecutionError)
+                                 else "parse: unexpected case processing error")
+                verdict, gates, seconds, reason = (
+                    "INFRASTRUCTURE_ERROR", {}, None, public_reason
+                )
+                failed = True
+            result = RESULTS_DIR / case_id / f"{agent_id}.md"
+            result.parent.mkdir(parents=True, exist_ok=True)
+            result.write_text(
+                render(case_id, verdict, gates, seconds, agent_name, agent_version, checked_at_utc,
+                       reason, result_note),
+                encoding="utf-8",
             )
-            failed = True
-        result = RESULTS_DIR / f"{case_id}.md"
-        result.parent.mkdir(parents=True, exist_ok=True)
-        result.write_text(
-            render(case_id, verdict, gates, seconds, agent_name, agent_version, checked_at_utc,
-                   reason, result_note),
-            encoding="utf-8",
-        )
-        label = f"{verdict} - no agent fix yet" if verdict == "PENDING" else verdict
-        print(f"{case_id}: {label}" + (f"; Reason: {reason}" if reason else ""))
+            label = f"{verdict} - no agent fix yet" if verdict == "PENDING" else verdict
+            print(f"{case_id}/{agent_id}: {label}" + (f"; Reason: {reason}" if reason else ""))
     return 1 if failed else 0
 
 
 if __name__ == "__main__":
     if sys.argv[1:] == ["--has-patches"]:
-        print("true" if any((ROOT / "cases" / case_id / "agent-fix.patch").read_bytes().strip()
-                            for case_id in selected_cases()) else "false")
+        print("true" if any((ROOT / "cases" / case_id / "agents" / agent_id / "agent-fix.patch").read_bytes().strip()
+                            for case_id in selected_cases() for agent_id in selected_agents(case_id)) else "false")
     else:
         sys.exit(main())

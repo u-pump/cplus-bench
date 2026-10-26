@@ -1,0 +1,13 @@
+{
+  "name": "Codex CLI",
+  "version": "0.164.0",
+  "model": "gpt-6-sol",
+  "reasoning": "medium",
+  "date_utc": "2026-10-23",
+  "environment": "local Windows, MSVC 2019 Build Tools",
+  "invocation": "codex exec --sandbox workspace-write",
+  "session_id": "01a16a69-b7a6-7b12-8af3-0233e0ad2af5",
+  "patch_sha256": "11b110ea6489605ff9059e14688a48cfaeafa88b77fe1a9d60296b261978db27",
+  "attempt_note": "First recorded attempt; migrated byte-for-byte from the original case layout.",
+  "result_note": "agent implemented the wait but broke the upstream discard_new behaviour (differs from expected upstream behaviour)"
+}

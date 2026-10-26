@@ -1,6 +1,14 @@
 name: Verify submitted patches
 
 on:
+  pull_request:
+    paths:
+      - 'cases/**'
+      - 'results/**'
+      - 'scripts/**'
+      - 'docs/**'
+      - 'README.md'
+      - '.github/workflows/verify.yml'
   push:
     branches:
       - main
@@ -21,8 +29,27 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - name: Test verifier and local runner
+        run: |
+          mkdir -p ../.tmp
+          PYTHONPATH=scripts python -m unittest test_verify_cases
+          pwsh -NoProfile -File scripts/test_run_agent_local.ps1
+      - name: Lint workflow
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/actionlint.tar.gz" https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
+          echo '8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  '"$RUNNER_TEMP/actionlint.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" .github/workflows/verify.yml
+
   verify:
-    if: github.actor == 'u-pump'
+    if: github.event_name != 'pull_request' && github.actor == 'u-pump'
     runs-on: ubuntu-latest
     timeout-minutes: 180
     outputs:
@@ -58,14 +85,14 @@ jobs:
         id: results
         if: ${{ always() && (steps.install.outcome == 'success' || steps.install.outcome == 'skipped') && (steps.verify_cases.outcome == 'success' || steps.verify_cases.outcome == 'failure') }}
         run: |
-          if compgen -G "$RUNNER_TEMP/public-results/*.md" > /dev/null; then
+          if find "$RUNNER_TEMP/public-results" -type f -name '*.md' -print -quit 2>/dev/null | grep -q .; then
             echo 'available=true' >> "$GITHUB_OUTPUT"
           fi
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: ${{ always() && steps.results.outputs.available == 'true' }}
         with:
           name: public-results
-          path: ${{ runner.temp }}/public-results/*.md
+          path: ${{ runner.temp }}/public-results/
           if-no-files-found: error
           retention-days: 1
 
