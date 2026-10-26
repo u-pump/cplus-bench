@@ -15,6 +15,47 @@ import verify_cases
 
 
 class VerifyCasesSmokeTest(unittest.TestCase):
+    def test_changed_pairs_ignore_rename_and_current_report(self) -> None:
+        source = verify_cases.ROOT / "cases" / "fmt-4800" / "agents"
+        existing = (verify_cases.ROOT / "results" / "fmt-4800" / "codex-cli.md").read_bytes()
+        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[2] / ".tmp") as directory:
+            root = Path(directory)
+            for agent_id in ("codex-cli", "claude-code"):
+                target = root / "cases" / "fmt-4800" / "agents" / agent_id
+                target.mkdir(parents=True)
+                for name in ("agent.yaml", "agent-fix.patch"):
+                    (target / name).write_bytes((source / agent_id / name).read_bytes())
+            result = root / "results" / "fmt-4800" / "codex-cli.md"
+            result.parent.mkdir(parents=True)
+            result.write_bytes(existing)
+            migrated = completed(
+                "R100\tcases/fmt-4800/agent-fix.patch\t"
+                "cases/fmt-4800/agents/codex-cli/agent-fix.patch\n"
+                "A\tcases/fmt-4800/agents/codex-cli/agent.yaml\n"
+                "A\tcases/fmt-4800/agents/claude-code/agent.yaml\n"
+                "A\tcases/fmt-4800/agents/claude-code/agent-fix.patch\n"
+            )
+            with (patch.object(verify_cases, "ROOT", root),
+                  patch.object(verify_cases, "quiet", return_value=migrated),
+                  patch.dict("os.environ", {"BEFORE_SHA": "a" * 40, "HEAD_SHA": "b" * 40,
+                                          "SELECT_CASE": "", "SELECT_AGENT": ""})):
+                self.assertEqual(verify_cases.selected_pairs(), [])
+                with patch.object(verify_cases, "run_case", side_effect=AssertionError("must not rerun")):
+                    self.assertEqual(verify_cases.main(), 0)
+                self.assertEqual(result.read_bytes(), existing)
+                claude = root / "cases" / "fmt-4800" / "agents" / "claude-code"
+                patch_bytes = b"diff --git a/a.cc b/a.cc\n+fixed\n"
+                (claude / "agent-fix.patch").write_bytes(patch_bytes)
+                metadata = json.loads((claude / "agent.yaml").read_text(encoding="utf-8"))
+                metadata["patch_sha256"] = hashlib.sha256(patch_bytes).hexdigest()
+                (claude / "agent.yaml").write_text(json.dumps(metadata), encoding="utf-8")
+                self.assertEqual(verify_cases.selected_pairs(), [("fmt-4800", "claude-code")])
+                self.assertEqual(result.read_bytes(), existing)
+
+    def test_explicit_selection_forces_current_report(self) -> None:
+        with patch.dict("os.environ", {"SELECT_CASE": "fmt-4800", "SELECT_AGENT": "codex-cli"}):
+            self.assertEqual(verify_cases.selected_pairs(), [("fmt-4800", "codex-cli")])
+
     def test_all_agent_pairs_get_separate_reports(self) -> None:
         source = verify_cases.ROOT / "cases" / "cpp-peglib-121"
         with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[2] / ".tmp") as directory:
@@ -134,8 +175,7 @@ class VerifyCasesSmokeTest(unittest.TestCase):
             )
             with (patch.object(verify_cases, "ROOT", root),
                   patch.object(verify_cases, "RESULTS_DIR", root / "results"),
-                  patch.object(verify_cases, "selected_cases", return_value=["spdlog-3049"]),
-                  patch.object(verify_cases, "selected_agents", return_value=["codex-cli"]),
+                  patch.object(verify_cases, "selected_pairs", return_value=[("spdlog-3049", "codex-cli")]),
                   patch.object(verify_cases, "agent_identity", return_value=("Codex CLI", "0.164.0")),
                   patch.object(verify_cases, "run_case", return_value=("REJECTED", {"anti_cheat": "PASS"}, 1.0, "reference still fails")),
                   contextlib.redirect_stdout(io.StringIO())):
@@ -162,8 +202,7 @@ class VerifyCasesSmokeTest(unittest.TestCase):
             root = Path(directory)
             with (patch.object(verify_cases, "ROOT", root),
                   patch.object(verify_cases, "RESULTS_DIR", root / "results"),
-                  patch.object(verify_cases, "selected_cases", return_value=["fmt-4800"]),
-                  patch.object(verify_cases, "selected_agents", return_value=["codex-cli"]),
+                  patch.object(verify_cases, "selected_pairs", return_value=[("fmt-4800", "codex-cli")]),
                   patch.object(verify_cases, "agent_identity", return_value=("Codex CLI", "0.163.0")),
                   patch.object(verify_cases, "run_case", side_effect=RuntimeError("D:\\runner\\private\\log PRIVATE_CPLUS_LOG")),
                   contextlib.redirect_stdout(io.StringIO())):

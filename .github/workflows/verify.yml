@@ -20,6 +20,10 @@ on:
         description: 'Case ID (blank means all cases)'
         required: false
         type: string
+      agent_id:
+        description: 'Agent ID (blank means all agents)'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -58,6 +62,7 @@ jobs:
       BEFORE_SHA: ${{ github.event.before }}
       HEAD_SHA: ${{ github.sha }}
       SELECT_CASE: ${{ inputs.case_id }}
+      SELECT_AGENT: ${{ inputs.agent_id }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:

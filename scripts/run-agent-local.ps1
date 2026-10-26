@@ -29,15 +29,28 @@ if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
 $version = (& $command --version).Trim()
 if ($LASTEXITCODE -ne 0 -or -not $version) { throw "$command --version failed" }
 if ($Agent -eq 'claude-code') {
+    Assert-ClaudeSandboxHost
+    $claudeSource = (Get-Command claude).Source
+    if ($claudeSource -match '^/mnt/|\.exe$|\.cmd$') {
+        throw 'Нужна Linux-версия Claude Code внутри WSL2, а не Windows-программа. См. docs/run-agent.md.'
+    }
+    if ($root -match '^/mnt/[a-z]/') {
+        throw 'Для песочницы WSL2 храните cplus-bench в файловой системе Ubuntu (например ~/cplus-bench), не в /mnt/c или /mnt/d.'
+    }
     try {
-        $auth = & claude auth status | ConvertFrom-Json
-        if ($LASTEXITCODE -ne 0 -or -not $auth.loggedIn) { throw 'not logged in' }
-    } catch { throw 'Claude Code не авторизован. Выполните claude и войдите в аккаунт.' }
-    $bare = $auth.authMethod -eq 'api_key' -and -not [string]::IsNullOrWhiteSpace($env:ANTHROPIC_API_KEY)
+        $authOutput = & claude auth status
+        $auth = $authOutput | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or $auth.loggedIn -ne $true -or
+            -not ($auth.PSObject.Properties.Name -contains 'authMethod') -or
+            [string]::IsNullOrWhiteSpace([string]$auth.authMethod)) { throw 'invalid auth status' }
+    } catch { throw 'Claude Code не авторизован. Выполните claude auth login в WSL2.' }
     $helpText = (& claude --help) -join "`n"
-    foreach ($flag in @('--print', '--restricted', '--tools', '--disallowedTools', '--strict-mcp-config', '--output-format', '--no-session-persistence', '--permission-prompts')) {
+    foreach ($flag in @('--print', '--restricted', '--safe-mode', '--tools', '--disallowedTools',
+        '--strict-mcp-config', '--output-format', '--no-session-persistence',
+        '--permission-prompts', '--settings', '--permission-mode')) {
         if (-not $helpText.Contains($flag)) { throw "Claude Code не поддерживает $flag; обновите CLI" }
     }
+    $claudeSettings = New-ClaudeSettings -BenchmarkRoot $root
 }
 $oldGhToken = $env:GH_TOKEN
 $oldGithubToken = $env:GITHUB_TOKEN
@@ -66,10 +79,10 @@ try {
     try {
         if ($Agent -eq 'claude-code') {
             $claudeArgs = @('-p', '--output-format', 'stream-json', '--verbose', '--no-session-persistence',
-                '--restricted', '--strict-mcp-config', '--disable-slash-commands',
+                '--restricted', '--safe-mode', '--strict-mcp-config', '--disable-slash-commands',
                 '--permission-mode', 'acceptEdits', '--permission-prompts', 'none',
-                '--tools', 'Bash,PowerShell,Read,Edit,Write,Glob,Grep', '--disallowedTools', 'WebSearch,WebFetch')
-            if ($bare) { $claudeArgs += '--bare' }
+                '--settings', $claudeSettings,
+                '--tools', 'Bash,Read,Edit,Write,Glob,Grep', '--disallowedTools', 'WebSearch,WebFetch')
             & claude @claudeArgs $task 2>&1 | Tee-Object -FilePath $logPath
         } else {
             & codex exec --sandbox workspace-write $task 2>&1 | Tee-Object -FilePath $logPath
@@ -80,13 +93,10 @@ try {
     if ($agentExit -ne 0) { throw "$Agent exited with code $agentExit; attempt not recorded. See $logPath" }
     if ($Agent -eq 'claude-code') {
         $model = Get-ClaudeEvidence -Log $log
-        $environment = if ($bare) {
-            'local Windows; --bare and --restricted; built-in web tools denied; settings, auto-memory and CLAUDE.md skipped; Bash/PowerShell network, host files and saved credentials not OS-isolated'
-        } else {
-            'local Windows; --restricted; built-in web tools denied; user/project settings ignored; CLAUDE.md may load; Bash/PowerShell network, host files and saved credentials not OS-isolated'
-        }
-        $invocation = 'claude -p --restricted --strict-mcp-config --tools Bash,PowerShell,Read,Edit,Write,Glob,Grep --disallowedTools WebSearch,WebFetch'
-        if ($bare) { $invocation += ' --bare' }
+        $networkAttempts = Get-ClaudeNetworkAttempts -Log $log
+        $osName = (Get-Content -LiteralPath '/etc/os-release' | Where-Object { $_ -like 'PRETTY_NAME=*' } | Select-Object -First 1) -replace '^PRETTY_NAME="?(.*?)"?$', '$1'
+        $environment = "WSL2 $osName; Claude Code sandbox enabled/failIfUnavailable; auto-allow Bash inside sandbox; strict empty network allowlist; unsandboxed commands disabled; seccomp filter required; --restricted --safe-mode; benchmark and credential paths denied; other host files may be readable"
+        $invocation = 'claude -p --restricted --safe-mode --strict-mcp-config --permission-mode acceptEdits --permission-prompts none --settings <strict sandbox JSON> --tools Bash,Read,Edit,Write,Glob,Grep --disallowedTools WebSearch,WebFetch'
         $name = 'Claude Code'
     } else {
         $modelMatch = [regex]::Match($log, '(?m)^model:\s*(\S+)')
@@ -112,6 +122,7 @@ try {
         environment = $environment; patch_sha256 = $hash
         attempt_note = 'First completed local attempt; build*/ output excluded from the patch.'
     }
+    if ($Agent -eq 'claude-code') { $metadata.network_attempts = $networkAttempts }
     Copy-Item -LiteralPath $candidate -Destination $patchPath
     try { $metadata | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $metaPath -Encoding utf8 }
     catch { [IO.File]::WriteAllBytes($patchPath, [byte[]]@()); throw }

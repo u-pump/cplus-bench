@@ -57,14 +57,73 @@ def selected_cases() -> list[str]:
         if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", explicit):
             raise ValueError("Invalid case ID")
         return [explicit]
-    before = os.environ.get("BEFORE_SHA", "")
-    head = os.environ.get("HEAD_SHA", "")
-    if before and before != "0" * 40 and head:
-        diff = quiet("git", "diff", "--name-only", before, head, "--", "cases/", cwd=ROOT)
-        if diff.returncode == 0:
-            return sorted({part[1] for line in diff.stdout.splitlines()
-                           if (part := line.split("/")) and len(part) >= 3})
     return sorted(path.name for path in (ROOT / "cases").iterdir() if path.is_dir())
+
+
+def patch_digest(case_id: str, agent_id: str) -> str | None:
+    path = ROOT / "cases" / case_id / "agents" / agent_id / "agent-fix.patch"
+    if not path.is_file():
+        return None
+    content = path.read_bytes()
+    return hashlib.sha256(content).hexdigest() if content.strip() else None
+
+
+def report_is_current(case_id: str, agent_id: str, digest: str) -> bool:
+    report = ROOT / "results" / case_id / f"{agent_id}.md"
+    metadata = ROOT / "cases" / case_id / "agents" / agent_id / "agent.yaml"
+    if not report.is_file() or not metadata.is_file():
+        return False
+    try:
+        agent = json.loads(metadata.read_text(encoding="utf-8"))
+        text = report.read_text(encoding="utf-8")
+    except (OSError, ValueError):
+        return False
+    return (
+        agent.get("patch_sha256") == digest
+        and re.search(rf"(?m)^Patch: sha256 {digest}$", text) is not None
+        and re.search(rf"(?m)^Verifier: cplus {VERIFIER_REVISION} ·", text) is not None
+    )
+
+
+def selected_pairs() -> list[tuple[str, str]]:
+    explicit_case = os.environ.get("SELECT_CASE", "").strip()
+    explicit_agent = os.environ.get("SELECT_AGENT", "").strip()
+    if explicit_agent and not re.fullmatch(r"[a-z0-9][a-z0-9-]*", explicit_agent):
+        raise ValueError("Invalid agent ID")
+    if explicit_case or explicit_agent:
+        cases = selected_cases()
+        pairs = [(case_id, agent_id) for case_id in cases for agent_id in selected_agents(case_id)
+                 if not explicit_agent or agent_id == explicit_agent]
+        if explicit_agent and not pairs:
+            raise ValueError("Selected agent unavailable")
+        return pairs
+
+    before = os.environ.get("BEFORE_SHA", "").strip()
+    head = os.environ.get("HEAD_SHA", "").strip()
+    if before and before != "0" * 40 and head:
+        diff = quiet("git", "diff", "-M100%", "--name-status", before, head,
+                     "--", "cases/", cwd=ROOT)
+        if diff.returncode:
+            raise ValueError("Could not compare submitted agent files")
+        candidates: set[tuple[str, str]] = set()
+        for row in diff.stdout.splitlines():
+            fields = row.split("\t")
+            status = fields[0]
+            if status == "R100" or status.startswith("D"):
+                continue
+            path = fields[-1]
+            match = re.fullmatch(
+                r"cases/([a-z0-9][a-z0-9-]*)/agents/([a-z0-9][a-z0-9-]*)/(?:agent-fix\.patch|agent\.yaml)",
+                path,
+            )
+            if match:
+                candidates.add((match[1], match[2]))
+    else:
+        candidates = {(case_id, agent_id) for case_id in selected_cases()
+                      for agent_id in selected_agents(case_id)}
+    return sorted((case_id, agent_id) for case_id, agent_id in candidates
+                  if (digest := patch_digest(case_id, agent_id))
+                  and not report_is_current(case_id, agent_id, digest))
 
 
 def extract_json(output: str) -> dict[str, object]:
@@ -144,7 +203,8 @@ def summary_reason(raw: object, fallback: str) -> str:
 
 def render(case_id: str, verdict: str, gates: dict[str, str], seconds: float | None,
            agent_name: str, agent_version: str, checked_at_utc: str,
-           reason: str | None = None, result_note: str | None = None) -> str:
+           reason: str | None = None, result_note: str | None = None,
+           patch_sha256: str | None = None) -> str:
     duration = "pending" if seconds is None else f"{seconds:.1f} s"
     rows = "\n".join(f"| {gate} | {gates.get(gate, 'SKIPPED')} |" for gate in GATES)
     note = "\n\nStatus: no agent fix yet" if verdict == "PENDING" else ""
@@ -155,6 +215,7 @@ def render(case_id: str, verdict: str, gates: dict[str, str], seconds: float | N
     note_line = f"\n\nNote: {result_note}" if verdict == "REJECTED" and result_note else ""
     return (f"# {case_id}\n\nVerdict: **{verdict}**{note}{reason_line}{note_line}\n\nElapsed: {duration}\n\n"
             f"Verifier: cplus {VERIFIER_REVISION} · {checked_at_utc}{verifier_note}\n\n"
+            f"Patch: sha256 {patch_sha256 or 'pending'}\n\n"
             f"Agent: {agent_name} · Version: {agent_version}\n\n"
             f"| Check | Status |\n| --- | --- |\n{rows}\n")
 
@@ -271,36 +332,38 @@ def run_case(case_id: str, agent_id: str) -> tuple[str, dict[str, str], float | 
 def main() -> int:
     failed = False
     checked_at_utc = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
-    for case_id in selected_cases():
-        for agent_id in selected_agents(case_id):
-            agent_name, agent_version = "not recorded", "not recorded"
-            result_note = None
-            try:
-                agent_name, agent_version = agent_identity(case_id, agent_id)
-                verdict, gates, seconds, reason = run_case(case_id, agent_id)
-                result_note = agent_result_note(case_id, agent_id)
-            except Exception as exc:
-                public_reason = (exc.public_reason if isinstance(exc, CaseExecutionError)
-                                 else "parse: unexpected case processing error")
-                verdict, gates, seconds, reason = (
-                    "INFRASTRUCTURE_ERROR", {}, None, public_reason
-                )
-                failed = True
-            result = RESULTS_DIR / case_id / f"{agent_id}.md"
-            result.parent.mkdir(parents=True, exist_ok=True)
-            result.write_text(
-                render(case_id, verdict, gates, seconds, agent_name, agent_version, checked_at_utc,
-                       reason, result_note),
-                encoding="utf-8",
+    for case_id, agent_id in selected_pairs():
+        agent_name, agent_version = "not recorded", "not recorded"
+        result_note = None
+        try:
+            agent_name, agent_version = agent_identity(case_id, agent_id)
+            verdict, gates, seconds, reason = run_case(case_id, agent_id)
+            result_note = agent_result_note(case_id, agent_id)
+        except Exception as exc:
+            public_reason = (exc.public_reason if isinstance(exc, CaseExecutionError)
+                             else "parse: unexpected case processing error")
+            verdict, gates, seconds, reason = (
+                "INFRASTRUCTURE_ERROR", {}, None, public_reason
             )
-            label = f"{verdict} - no agent fix yet" if verdict == "PENDING" else verdict
-            print(f"{case_id}/{agent_id}: {label}" + (f"; Reason: {reason}" if reason else ""))
+            failed = True
+        result = RESULTS_DIR / case_id / f"{agent_id}.md"
+        result.parent.mkdir(parents=True, exist_ok=True)
+        result.write_text(
+            render(case_id, verdict, gates, seconds, agent_name, agent_version, checked_at_utc,
+                   reason, result_note, patch_digest(case_id, agent_id)),
+            encoding="utf-8",
+        )
+        label = f"{verdict} - no agent fix yet" if verdict == "PENDING" else verdict
+        print(f"{case_id}/{agent_id}: {label}" + (f"; Reason: {reason}" if reason else ""))
     return 1 if failed else 0
 
 
 if __name__ == "__main__":
     if sys.argv[1:] == ["--has-patches"]:
         print("true" if any((ROOT / "cases" / case_id / "agents" / agent_id / "agent-fix.patch").read_bytes().strip()
-                            for case_id in selected_cases() for agent_id in selected_agents(case_id)) else "false")
+                            for case_id, agent_id in selected_pairs()) else "false")
+    elif sys.argv[1:] == ["--list-pairs"]:
+        for case_id, agent_id in selected_pairs():
+            print(f"{case_id}/{agent_id}")
     else:
         sys.exit(main())
