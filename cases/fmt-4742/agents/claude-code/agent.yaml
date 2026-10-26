@@ -1,0 +1,10 @@
+{
+  "name": "Claude Code",
+  "version": null,
+  "model": null,
+  "invocation": "claude -p",
+  "date_utc": null,
+  "environment": "Pending local Windows run; actual isolation recorded after the attempt",
+  "patch_sha256": null,
+  "attempt_note": "Not run"
+}

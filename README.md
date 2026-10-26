@@ -4,20 +4,23 @@ AI agents attempt to fix real C/C++ bugs from open-source projects. An independe
 
 ## Results
 
-| Case | Project | Bug | Agent | Verdict | Report |
-| --- | --- | --- | --- | --- | --- |
-| cpp-peglib-121 | [cpp-peglib](https://github.com/yhirose/cpp-peglib) | [#121: start rule with ignore operator](https://github.com/yhirose/cpp-peglib/issues/121) | Codex CLI 0.163.0 (`gpt-6-sol`) | REJECTED | [Result](results/cpp-peglib-121.md) |
-| fmt-4490 | [fmt](https://github.com/fmtlib/fmt) | [#4490: allocator move](https://github.com/fmtlib/fmt/pull/4490) | Codex CLI 0.164.0 (`gpt-6-sol`) | REJECTED | [Result](results/fmt-4490.md) |
-| fmt-4742 | [fmt](https://github.com/fmtlib/fmt) | [#4742: out-of-bounds read](https://github.com/fmtlib/fmt/pull/4742) | Codex CLI 0.164.0 (`gpt-6-sol`) | REJECTED | [Result](results/fmt-4742.md) |
-| fmt-4800 | [fmt](https://github.com/fmtlib/fmt) | [#4800: positional width and precision](https://github.com/fmtlib/fmt/pull/4800) | Codex CLI 0.163.0 (`gpt-6-sol`) | VERIFIED | [Result](results/fmt-4800.md) |
-| fmt-4933 | [fmt](https://github.com/fmtlib/fmt) | [#4933: named argument count](https://github.com/fmtlib/fmt/pull/4933) | Codex CLI 0.164.0 (`gpt-6-sol`) | REJECTED | [Result](results/fmt-4933.md) |
-| fmt-4942 | [fmt](https://github.com/fmtlib/fmt) | [#4942: zero precision](https://github.com/fmtlib/fmt/pull/4942) | Codex CLI 0.164.0 (`gpt-6-sol`) | VERIFIED | [Result](results/fmt-4942.md) |
-| fmt-4960 | [fmt](https://github.com/fmtlib/fmt) | [#4960: floating-point precision](https://github.com/fmtlib/fmt/pull/4960) | Codex CLI 0.164.0 (`gpt-6-sol`) | REJECTED | [Result](results/fmt-4960.md) |
-| fmt-4978 | [fmt](https://github.com/fmtlib/fmt) | [#4978: calendar formatting](https://github.com/fmtlib/fmt/pull/4978) | Codex CLI 0.164.0 (`gpt-6-sol`) | VERIFIED | [Result](results/fmt-4978.md) |
-| spdlog-3049 | [spdlog](https://github.com/gabime/spdlog) | [#3049: concurrent async flush](https://github.com/gabime/spdlog/pull/3049) | Codex CLI 0.164.0 (`gpt-6-sol`) | REJECTED | [Result](results/spdlog-3049.md) |
-| zlibng-2465 | [zlib-ng](https://github.com/zlib-ng/zlib-ng) | [#2465: inflate boundary](https://github.com/zlib-ng/zlib-ng/pull/2465) | Codex CLI 0.164.0 (`gpt-6-sol`) | VERIFIED | [Result](results/zlibng-2465.md) |
+| Case | Project | Bug | Codex CLI | Claude Code |
+| --- | --- | --- | --- | --- |
+| cpp-peglib-121 | [cpp-peglib](https://github.com/yhirose/cpp-peglib) | [#121: start rule with ignore operator](https://github.com/yhirose/cpp-peglib/issues/121) | [REJECTED](results/cpp-peglib-121/codex-cli.md) | [PENDING](results/cpp-peglib-121/claude-code.md) |
+| fmt-4490 | [fmt](https://github.com/fmtlib/fmt) | [#4490: allocator move](https://github.com/fmtlib/fmt/pull/4490) | [REJECTED](results/fmt-4490/codex-cli.md) | [PENDING](results/fmt-4490/claude-code.md) |
+| fmt-4742 | [fmt](https://github.com/fmtlib/fmt) | [#4742: out-of-bounds read](https://github.com/fmtlib/fmt/pull/4742) | [REJECTED](results/fmt-4742/codex-cli.md) | [PENDING](results/fmt-4742/claude-code.md) |
+| fmt-4800 | [fmt](https://github.com/fmtlib/fmt) | [#4800: positional width and precision](https://github.com/fmtlib/fmt/pull/4800) | [VERIFIED](results/fmt-4800/codex-cli.md) | [PENDING](results/fmt-4800/claude-code.md) |
+| fmt-4933 | [fmt](https://github.com/fmtlib/fmt) | [#4933: named argument count](https://github.com/fmtlib/fmt/pull/4933) | [REJECTED](results/fmt-4933/codex-cli.md) | [PENDING](results/fmt-4933/claude-code.md) |
+| fmt-4942 | [fmt](https://github.com/fmtlib/fmt) | [#4942: zero precision](https://github.com/fmtlib/fmt/pull/4942) | [VERIFIED](results/fmt-4942/codex-cli.md) | [PENDING](results/fmt-4942/claude-code.md) |
+| fmt-4960 | [fmt](https://github.com/fmtlib/fmt) | [#4960: floating-point precision](https://github.com/fmtlib/fmt/pull/4960) | [REJECTED](results/fmt-4960/codex-cli.md) | [PENDING](results/fmt-4960/claude-code.md) |
+| fmt-4978 | [fmt](https://github.com/fmtlib/fmt) | [#4978: calendar formatting](https://github.com/fmtlib/fmt/pull/4978) | [VERIFIED](results/fmt-4978/codex-cli.md) | [PENDING](results/fmt-4978/claude-code.md) |
+| spdlog-3049 | [spdlog](https://github.com/gabime/spdlog) | [#3049: concurrent async flush](https://github.com/gabime/spdlog/pull/3049) | [REJECTED](results/spdlog-3049/codex-cli.md) | [PENDING](results/spdlog-3049/claude-code.md) |
+| zlibng-2465 | [zlib-ng](https://github.com/zlib-ng/zlib-ng) | [#2465: inflate boundary](https://github.com/zlib-ng/zlib-ng/pull/2465) | [VERIFIED](results/zlibng-2465/codex-cli.md) | [PENDING](results/zlibng-2465/claude-code.md) |
 
-4 verified, 6 rejected of 10.
+| Agent | VERIFIED | REJECTED | PENDING |
+| --- | ---: | ---: | ---: |
+| Codex CLI | 4 | 6 | 0 |
+| Claude Code | 0 | 0 | 10 |
 
 fmt-4960: reference test chosen after the agent run ([see case](cases/fmt-4960/case.yaml)).
 

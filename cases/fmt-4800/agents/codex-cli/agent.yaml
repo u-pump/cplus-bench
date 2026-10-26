@@ -1,0 +1,13 @@
+{
+  "name": "Codex CLI",
+  "version": "0.163.0",
+  "model": "gpt-6-sol",
+  "reasoning": "medium",
+  "date_utc": "2026-10-19",
+  "environment": "local Windows, MSVC 2019 Build Tools",
+  "invocation": "codex exec",
+  "sandbox": "workspace-write",
+  "patch_sha256": "0fa4bd65d2fcf96f9ecfee2e555cd0e5846a27f9870fdd6947646e56b198b9b3",
+  "excluded": "build-ninja/ (build output)",
+  "attempt_note": "First recorded attempt; migrated byte-for-byte from the original case layout."
+}

@@ -1,13 +1,14 @@
-# fmt-4960
+# fmt-4933
 
 Verdict: **REJECTED**
 
-Reason: judged by upstream reference test 'format_test.high_precision_trailing_zeros'; the patch did not eliminate the expected reproducer failure
+Reason: judged by upstream reference test 'args_test.named_arg_count'; the patch did not eliminate the expected reproducer failure
 
-Elapsed: 31.1 s
+Elapsed: 6.8 s
 
 Verifier: cplus 81c0fda242fef1daf55d3164e06127d372c81caa · 2026-10-24 14:16:42 UTC
 
+Patch: sha256 3b05c03c4ffd7fc990e4cc4c667ac61a0eea725cad9a2a1f58215ac8e7cc06c7
 Agent: Codex CLI · Version: 0.164.0
 
 | Check | Status |
