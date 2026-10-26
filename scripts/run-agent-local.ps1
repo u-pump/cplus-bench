@@ -119,8 +119,9 @@ try {
 } finally {
     $env:GH_TOKEN = $oldGhToken
     $env:GITHUB_TOKEN = $oldGithubToken
-    $rootFull = [IO.Path]::GetFullPath($checkoutRoot).TrimEnd('\')
+    $separator = [IO.Path]::DirectorySeparatorChar
+    $rootFull = [IO.Path]::GetFullPath($checkoutRoot).TrimEnd($separator)
     $checkoutFull = [IO.Path]::GetFullPath($checkout)
-    if (-not $checkoutFull.StartsWith("$rootFull\", [StringComparison]::OrdinalIgnoreCase)) { throw 'Unsafe checkout cleanup path' }
+    if (-not $checkoutFull.StartsWith("$rootFull$separator", [StringComparison]::OrdinalIgnoreCase)) { throw 'Unsafe checkout cleanup path' }
     if (Test-Path -LiteralPath $checkoutFull) { Remove-Item -LiteralPath $checkoutFull -Recurse -Force }
 }
