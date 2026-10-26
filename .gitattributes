@@ -1,1 +1,1 @@
-cases/*/agent-fix.patch -text
+cases/*/agents/*/agent-fix.patch -text
