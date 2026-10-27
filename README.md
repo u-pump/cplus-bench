@@ -1,6 +1,6 @@
-# cplus-bench
+# Unfix benchmark: AI-agent fixes to real C/C++ bugs, independently verified
 
-AI agents attempt to fix real C/C++ bugs from open-source projects. An independent, closed-source verifier, `cplus`, checks each patch against the project's own reference test, which the agent never saw.
+Verified by [Unfix](https://unfix.dev) — an independent verifier for C/C++ and firmware fixes. It doesn't write code; it reproduces the bug, applies the fix, removes it again and checks that the bug comes back.
 
 ## Results
 
@@ -22,21 +22,63 @@ AI agents attempt to fix real C/C++ bugs from open-source projects. An independe
 | Codex CLI | 4 | 6 | 0 |
 | Claude Code | 0 | 0 | 10 |
 
-fmt-4960: reference test chosen after the agent run ([see case](cases/fmt-4960/case.yaml)).
+Claude Code is the second agent; its runs are pending in an OS-sandboxed environment.
 
-## How to read a verdict
+## What the agent got
 
-- **VERIFIED:** The reference test fails on the broken base, passes with the agent patch, and fails again after the agent's source changes are reverted; required checks pass.
-- **REJECTED:** The patch fails a required check, such as fixing the reference test or preserving existing tests.
-- **NOT_VERIFIABLE:** The verifier cannot establish a reliable code verdict from the available evidence.
+- A snapshot of the broken commit, with no later upstream history or fix.
+- `ISSUE.md`: the original issue text with solution-revealing passages removed.
+- The same `TASK.md` for every case: “Fix the bug described in ISSUE.md. Keep the change minimal. Run the existing tests.”
+- One attempt without network access; the first patch was saved byte-for-byte, without human edits.
+- `input_sha256` in each `case.yaml` identifies the frozen source archive, `ISSUE.md`, and `TASK.md` input.
 
-## Methodology
+## How a verdict is decided
 
-1. Select an upstream bug and reproduce its reference test on the broken commit.
-2. Give the agent only the broken source snapshot and issue text, without the reference test or upstream fix.
-3. Preserve the agent's first patch and record its identity and patch hash.
-4. Check the complete patch against the upstream reference test and the verifier's other gates; publish the verdict and checks.
+The reference test comes from the maintainers' upstream fix. Before the agent runs, the first test in the upstream diff that fails on the broken base three times out of three is selected and frozen. **VERIFIED** means that test passes with the agent patch and fails again when only the agent's source changes are reverted, with all required checks passing. Anti-cheat checks reject changes that evade the test or weaken its checks. **REJECTED** means a required check failed; **NOT_VERIFIABLE** means the available evidence cannot establish a reliable code verdict. See the [full protocol](docs/protocol.md).
 
-See the [full protocol](docs/protocol.md).
+## Check a verdict yourself
 
-Small sample, not a statistical benchmark. More cases are coming.
+This example reproduces the [fmt-4800 VERIFIED report](results/fmt-4800/codex-cli.md) on Linux or WSL. You need Git, CMake, a C++ compiler and a shell. Start in the root of this benchmark repository. The commands use `repo`, `base`, `upstream_fix`, `bug_test`, `build`, and `test` from [case.yaml](cases/fmt-4800/case.yaml); the agent patch is [agent-fix.patch](cases/fmt-4800/agents/codex-cli/agent-fix.patch).
+
+```sh
+BENCH="$PWD"
+BASE=e60274b29c0a748df2c6280d0a374e6eef3b6c73
+FIX=128ba144ab85ddd0ad9ea39f2febdfb51802cb1b
+git clone https://github.com/fmtlib/fmt.git ../fmt-4800-recheck
+cd ../fmt-4800-recheck
+git checkout "$BASE"
+
+# Add only the maintainers' reference test, not their source fix.
+git diff "$BASE" "$FIX" -- test/printf-test.cc | git apply
+cmake -S . -B build -DFMT_TEST=ON
+cmake --build build --target printf-test
+./build/bin/printf-test --gtest_filter=printf_test.zero_positional_width_precision
+# Expected: FAIL on the broken base.
+
+# Apply the agent's first patch and rebuild.
+git apply "$BENCH/cases/fmt-4800/agents/codex-cli/agent-fix.patch"
+cmake --build build --target printf-test
+./build/bin/printf-test --gtest_filter=printf_test.zero_positional_width_precision
+# Expected: PASS.
+ctest --test-dir build -R printf-test --output-on-failure
+# Expected: the full printf-test target passes.
+
+# Remove only the agent's source edit. Keep the reference test and agent test.
+git restore --source="$BASE" -- include/fmt/base.h
+cmake --build build --target printf-test
+./build/bin/printf-test --gtest_filter=printf_test.zero_positional_width_precision
+# Expected: FAIL again.
+```
+
+The focused command above runs the selected `bug_test`; the CTest command runs the full target named by `test`. Other cases may need a different build target or test filter: use that case's `build`, `test`, and `bug_test` fields.
+
+## Limits
+
+- Ten cases is a small sample; seven are from fmt.
+- In fmt-4960, the reference test was chosen after the agent run. The selection rule was applied retrospectively and documented in [the case file](cases/fmt-4960/case.yaml); the patch was never edited.
+- The verifier is not open source yet. Public reports contain the verdict, eight check statuses, and elapsed time.
+- One agent has results so far; Claude Code is next.
+
+## Found a wrong verdict?
+
+[Open an issue](https://github.com/u-pump/cplus-bench/issues) with the case ID. Corrections will be published. Contact: [hello@unfix.dev](mailto:hello@unfix.dev). More at [unfix.dev](https://unfix.dev).
