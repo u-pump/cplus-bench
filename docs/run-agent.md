@@ -1,6 +1,6 @@
 # Запуск агента владельцем
 
-Агента запускает только владелец. Для Claude Code нужен **WSL2 Ubuntu**. Репозиторий с результатами можно держать в `~/cplus-bench`; временный checkout агента скрипт создаёт отдельно в `/var/tmp/cplus-bench-agent/<agent>/<id>` и удаляет после прогона. Нативный Windows скрипт отклоняет. Скрипт берёт только приватный `u-pump/bench-in-<id>`, передаёт ему неизменённый `TASK.md`, сохраняет первую попытку и не даёт её перезаписать.
+Агента запускает только владелец. Для Claude Code нужен **WSL2 Ubuntu**. Репозиторий с результатами можно держать в `~/unfix-bench`; временный checkout агента скрипт создаёт отдельно в `/var/tmp/cplus-bench-agent/<agent>/<id>` и удаляет после прогона. Нативный Windows скрипт отклоняет. Скрипт берёт только приватный `u-pump/bench-in-<id>`, передаёт ему неизменённый `TASK.md`, сохраняет первую попытку и не даёт её перезаписать.
 
 ## Подготовка WSL2 один раз
 
@@ -38,8 +38,8 @@ claude --version
 claude auth login
 claude auth status
 gh auth login -h github.com
-gh repo clone u-pump/cplus-bench ~/cplus-bench
-cd ~/cplus-bench
+gh repo clone u-pump/unfix-bench ~/unfix-bench
+cd ~/unfix-bench
 git switch bench-10
 ```
 
@@ -47,7 +47,7 @@ git switch bench-10
 
 ## Один кейс
 
-Из `~/cplus-bench` в Ubuntu:
+Из `~/unfix-bench` в Ubuntu:
 
 ```bash
 pwsh -NoProfile -File scripts/run-agent-local.ps1 -Agent claude-code fmt-4800

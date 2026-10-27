@@ -81,4 +81,4 @@ The focused command above runs the selected `bug_test`; the CTest command runs t
 
 ## Found a wrong verdict?
 
-[Open an issue](https://github.com/u-pump/cplus-bench/issues) with the case ID. Corrections will be published. Contact: [hello@unfix.dev](mailto:hello@unfix.dev). More at [unfix.dev](https://unfix.dev).
+[Open an issue](https://github.com/u-pump/unfix-bench/issues) with the case ID. Corrections will be published. Contact: [hello@unfix.dev](mailto:hello@unfix.dev). More at [unfix.dev](https://unfix.dev).
