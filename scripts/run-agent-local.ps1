@@ -35,7 +35,7 @@ if ($Agent -eq 'claude-code') {
         throw 'Нужна Linux-версия Claude Code внутри WSL2, а не Windows-программа. См. docs/run-agent.md.'
     }
     if ($root -match '^/mnt/[a-z]/') {
-        throw 'Для песочницы WSL2 храните cplus-bench в файловой системе Ubuntu (например ~/cplus-bench), не в /mnt/c или /mnt/d.'
+        throw 'Для песочницы WSL2 храните unfix-bench в файловой системе Ubuntu (например ~/unfix-bench), не в /mnt/c или /mnt/d.'
     }
     try {
         $authOutput = & claude auth status
