@@ -87,10 +87,12 @@ The focused command above runs the selected `bug_test`; the CTest command runs t
 
 | Content | License |
 | --- | --- |
-| Code in `scripts/` and `.github/workflows/` | [MIT](LICENSE) |
-| Benchmark data and documentation in `cases/**/case.yaml`, `cases/**/agents/**/agent.yaml`, `results/`, `README.md`, `docs/`, and `CITATION.cff` | [Creative Commons Attribution 4.0 International (CC BY 4.0)](LICENSE-DATA) |
+| Code in `scripts/` and `.github/workflows/` | [MIT](LICENSES/MIT.txt) |
+| Benchmark data and documentation in `cases/**/case.yaml`, `cases/**/agents/**/agent.yaml`, `results/`, `README.md`, `docs/`, and `CITATION.cff` | [Creative Commons Attribution 4.0 International (CC BY 4.0)](LICENSES/CC-BY-4.0.txt) |
 | Agent patches in `cases/**/agents/**/agent-fix.patch` and reproduced upstream code | The [respective upstream project's license](THIRD_PARTY_NOTICES.md) |
 
 To cite the benchmark, use [CITATION.cff](CITATION.cff). Recommended attribution for CC BY 4.0 material: “Unfix benchmark by U-Pump, https://github.com/u-pump/unfix-bench, licensed under CC BY 4.0”.
 
-The Unfix verifier is proprietary, is not included in this repository, and is not covered by these licenses. See [LICENSE](LICENSE), [LICENSE-DATA](LICENSE-DATA), and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the applicable terms.
+The license texts follow the [`LICENSES/<SPDX-ID>.txt` layout in the REUSE Specification](https://reuse.software/spec/). The root [LICENSE](LICENSE) is the same MIT text as [LICENSES/MIT.txt](LICENSES/MIT.txt); see [LICENSES/CC-BY-4.0.txt](LICENSES/CC-BY-4.0.txt) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the other applicable terms.
+
+The Unfix verifier is proprietary, is not included in this repository, and is not covered by these licenses.

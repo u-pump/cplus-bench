@@ -1,5 +1,3 @@
-CC BY 4.0 applies to benchmark data and documentation, including case.yaml, agent.yaml, results/, README.md, docs/, and CITATION.cff. Agent patches are excluded; see THIRD_PARTY_NOTICES.md.
-
 Attribution 4.0 International
 
 =======================================================================

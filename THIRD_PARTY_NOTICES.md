@@ -1,6 +1,6 @@
 # Third-party notices
 
-Agent patches in `cases/**/agents/**/agent-fix.patch` modify third-party source code. Those patches and any reproduced upstream code fragments are governed by the license of the respective upstream project, rather than U-Pump's MIT or CC BY 4.0 licenses. The links below point to the license file at each case's exact `base` commit in `case.yaml`.
+Agent patches in `cases/**/agents/**/agent-fix.patch` modify third-party source code. Those patches and any reproduced upstream code fragments are governed by the license of the respective upstream project, rather than U-Pump's [MIT](LICENSES/MIT.txt) or [CC BY 4.0](LICENSES/CC-BY-4.0.txt) licenses. The links below point to the license file at each case's exact `base` commit in `case.yaml`.
 
 | Upstream project | Repository | SPDX license | License at case base commit |
 | --- | --- | --- | --- |
@@ -9,4 +9,4 @@ Agent patches in `cases/**/agents/**/agent-fix.patch` modify third-party source 
 | spdlog | [gabime/spdlog](https://github.com/gabime/spdlog) | MIT | [spdlog-3049](https://github.com/gabime/spdlog/blob/6766f873d680e696c29541dbd144f4ef0785f547/LICENSE) |
 | zlib-ng | [zlib-ng/zlib-ng](https://github.com/zlib-ng/zlib-ng) | Zlib | [zlibng-2465](https://github.com/zlib-ng/zlib-ng/blob/75eb731258d9a2dc0fe6180f6d0d45e440da140f/LICENSE.md) |
 
-The fmt license at the `fmt-4490` base commit includes an optional exception for portions embedded in compiled object code. The spdlog license file also notes its dependency on fmt. Consult the linked license files for their complete terms.
+Only the fmt license at the `fmt-4490` base commit includes an optional exception for portions embedded in compiled object code. The six later fmt base commits listed above contain the standard MIT text without that exception. The spdlog license file also notes its dependency on fmt. Consult the linked license files for their complete terms.
