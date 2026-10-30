@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 U-Pump
 set -eu
 if [ -z "${CPLUS_READ_TOKEN:-}" ]; then
   echo 'Verifier token missing'

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 U-Pump
 """Offline smoke test of case selection and public report generation."""
 
 from __future__ import annotations

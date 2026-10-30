@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 U-Pump
 param(
     [Parameter(Mandatory, Position = 0)]
     [ValidatePattern('^[a-z0-9][a-z0-9-]*$')][string]$CaseId,
