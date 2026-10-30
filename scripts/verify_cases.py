@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 U-Pump
 """Run private cplus and publish only a small allowlisted summary."""
 
 from __future__ import annotations

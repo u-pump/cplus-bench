@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 U-Pump
 function ConvertFrom-ClaudeEvents {
     param([Parameter(Mandatory)][string]$Log)
     @($Log -split "`r?`n" | Where-Object { $_.TrimStart().StartsWith('{') } | ForEach-Object {

@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use the Unfix benchmark, please cite it using this metadata. Unfix: https://unfix.dev."
+title: "Unfix benchmark: AI-agent fixes to real C/C++ bugs, independently verified"
+authors:
+  - name: U-Pump
+url: "https://github.com/u-pump/unfix-bench"
+repository-code: "https://github.com/u-pump/unfix-bench"
+abstract: "Ten real bugs from open-source C/C++ projects, one attempt each by an AI coding agent, every patch independently verified by Unfix (VERIFIED / REJECTED). Cases, agent patches and per-case verdicts are published for reproduction."
+keywords:
+  - cpp
+  - c
+  - benchmark
+  - ai-agents
+  - code-verification
+  - embedded
+license: CC-BY-4.0
+license-url: "https://github.com/u-pump/unfix-bench/blob/main/LICENSES/CC-BY-4.0.txt"
+version: 0.1.0
+date-released: 2026-10-31
